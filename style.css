@@ -1,0 +1,441 @@
+:root {
+    /* Colors */
+    --bg-deep: hsl(220, 20%, 5%);
+    --bg-gradient: linear-gradient(135deg, hsl(220, 20%, 8%) 0%, hsl(220, 30%, 3%) 100%);
+    --glass-bg: hsla(220, 20%, 15%, 0.45);
+    --glass-border: hsla(220, 20%, 100%, 0.1);
+
+    --text-primary: hsl(0, 0%, 100%);
+    --text-secondary: hsl(220, 10%, 70%);
+    --text-dim: hsl(220, 10%, 50%);
+
+    --accent-tan: hsl(85, 90%, 45%);
+    /* Typical Green TAN */
+    --accent-bus: hsl(260, 80%, 65%);
+    --accent-warning: hsl(30, 90%, 50%);
+
+    /* Spacing & Radii */
+    --radius-lg: 24px;
+    --radius-md: 16px;
+    --gap-main: clamp(10px, 3vmin, 24px);
+}
+
+* {
+    margin: 0;
+    padding: 0;
+    box-sizing: border-box;
+}
+
+body {
+    font-family: 'Inter', sans-serif;
+    background-color: var(--bg-deep);
+    background-image: var(--bg-gradient);
+    color: var(--text-primary);
+    min-height: 100vh;
+    display: flex;
+    flex-direction: column;
+    overflow-x: hidden;
+    padding: clamp(10px, 3vmin, 40px);
+}
+
+h1,
+h2,
+h3,
+.section-label {
+    font-family: 'Outfit', sans-serif;
+}
+
+.background-overlay {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background: radial-gradient(circle at 80% 20%, hsla(85, 90%, 45%, 0.05) 0%, transparent 40%),
+        radial-gradient(circle at 20% 80%, hsla(260, 80%, 65%, 0.05) 0%, transparent 40%);
+    z-index: -1;
+}
+
+/* Header */
+.main-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    /* More stable than flex-end */
+    margin-bottom: clamp(10px, 5vh, 60px);
+}
+
+#clock {
+    font-size: clamp(3rem, 8vmin, 6rem);
+    font-weight: 800;
+    line-height: 1;
+    letter-spacing: -2px;
+    font-variant-numeric: tabular-nums;
+    transition: font-size 0.2s ease-out;
+}
+
+#date {
+    font-size: clamp(1rem, 2vmin, 1.4rem);
+    color: var(--text-secondary);
+    margin-top: 8px;
+    text-transform: capitalize;
+}
+
+.weather-container {
+    text-align: right;
+    background: var(--glass-bg);
+    backdrop-filter: blur(10px);
+    padding: 16px 24px;
+    border-radius: var(--radius-md);
+    border: 1px solid var(--glass-border);
+}
+
+/* Market Data */
+.market-container {
+    display: flex;
+    gap: 12px;
+    align-items: center;
+}
+
+.market-card {
+    background: var(--glass-bg);
+    backdrop-filter: blur(10px);
+    border: 1px solid var(--glass-border);
+    border-radius: var(--radius-md);
+    padding: 12px 20px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 4px;
+    min-width: 120px;
+    text-align: center;
+}
+
+.market-card.skeleton {
+    min-width: 120px;
+    min-height: 64px;
+}
+
+.market-name {
+    font-size: clamp(0.65rem, 1.5vmin, 0.8rem);
+    text-transform: uppercase;
+    letter-spacing: 1.5px;
+    color: var(--text-dim);
+    font-weight: 500;
+}
+
+.market-price {
+    font-family: 'Outfit', sans-serif;
+    font-size: clamp(1rem, 2.5vmin, 1.4rem);
+    font-weight: 700;
+    color: var(--text-primary);
+    font-variant-numeric: tabular-nums;
+}
+
+.variation {
+    font-size: clamp(0.7rem, 1.5vmin, 0.85rem);
+    font-weight: 600;
+    letter-spacing: 0.5px;
+}
+
+.variation.positive {
+    color: hsl(130, 75%, 50%);
+}
+
+.variation.negative {
+    color: hsl(10, 80%, 60%);
+}
+
+.market-error {
+    font-size: 0.8rem;
+    color: var(--text-dim);
+}
+
+.weather-info {
+    display: flex;
+    align-items: center;
+    gap: 16px;
+}
+
+.weather-icon {
+    font-size: 2.5rem;
+}
+
+.weather-text {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-end;
+}
+
+.temp {
+    font-size: 1.8rem;
+    font-weight: 700;
+}
+
+.condition {
+    font-size: 0.9rem;
+    color: var(--text-secondary);
+    text-transform: capitalize;
+}
+
+.rain-proba {
+    font-size: 0.8rem;
+    color: hsl(200, 80%, 70%);
+    margin-top: 4px;
+    font-weight: 600;
+}
+
+/* Dashboard Layout */
+.dashboard {
+    display: flex;
+    flex-direction: column;
+    gap: var(--gap-main);
+    flex-grow: 1;
+}
+
+.section {
+    background: var(--glass-bg);
+    backdrop-filter: blur(15px);
+    border: 1px solid var(--glass-border);
+    border-radius: var(--radius-lg);
+    padding: clamp(10px, 3vmin, 32px);
+    transition: transform 0.3s ease, box-shadow 0.3s ease;
+}
+
+.section:hover {
+    transform: translateY(-4px);
+    box-shadow: 0 20px 40px hsla(0, 0%, 0%, 0.4);
+}
+
+.section-label {
+    font-size: clamp(0.7rem, 2vmin, 1rem);
+    text-transform: uppercase;
+    letter-spacing: 2px;
+    color: var(--text-dim);
+    margin-bottom: clamp(10px, 2vh, 24px);
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    height: 3rem;
+    /* Force constant height for all headers */
+    line-height: 1;
+}
+
+.section-label .highlight {
+    color: var(--text-primary);
+    font-weight: 600;
+}
+
+/* Major Focus (Neustrie) */
+.major-focus {
+    border-left: 8px solid var(--accent-tan);
+}
+
+.major-focus #neustrie-list .time-item {
+    font-size: clamp(3rem, 13vmin, 10vh);
+    font-weight: 800;
+    color: var(--accent-tan);
+}
+
+/* Secondary Grid */
+.secondary-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(400px, 1fr));
+    gap: var(--gap-main);
+}
+
+.minor-focus,
+.bus-focus {
+    display: flex;
+    flex-direction: column;
+    border-left: 4px solid var(--text-dim);
+}
+
+.minor-focus {
+    border-left-color: var(--text-primary);
+}
+
+.bus-focus {
+    border-left-color: var(--accent-bus);
+}
+
+.minor-focus .time-item,
+.bus-focus .time-item {
+    font-size: clamp(2.5rem, 12vmin, 8vh);
+    font-weight: 700;
+}
+
+.section-label.small {
+    margin-top: clamp(8px, 2vh, 16px);
+    font-size: 0.8rem;
+    margin-bottom: clamp(4px, 1vh, 8px);
+    opacity: 0.7;
+}
+
+.times-list.small .time-item {
+    /* Same size now */
+    font-size: clamp(2.5rem, 12vmin, 8vh);
+    color: var(--text-secondary);
+}
+
+/* Time Item details */
+.time-item {
+    display: grid;
+    grid-template-columns: clamp(80px, 15vmin, 120px) auto auto;
+    align-items: center;
+    /* Center to be more stable than baseline */
+    gap: 16px;
+    height: clamp(3rem, 10vh, 6rem);
+    /* Force constant height for all items */
+    animation: fadeIn 0.5s ease forwards;
+    width: fit-content;
+}
+
+.time-label {
+    font-size: clamp(0.8rem, 2vmin, 1.2rem);
+    font-weight: 500;
+    text-transform: uppercase;
+    color: var(--text-dim);
+    letter-spacing: 1px;
+}
+
+.time-value {
+    /* Legacy or specific styling if needed */
+}
+
+.time-unit {
+    font-size: 0.4em;
+    font-weight: 400;
+    color: var(--text-dim);
+}
+
+/* Skeletons */
+.skeleton {
+    background: linear-gradient(90deg, transparent, hsla(0, 0%, 100%, 0.05), transparent);
+    background-size: 200% 100%;
+    animation: skeleton-loading 1.5s infinite;
+    border-radius: 8px;
+}
+
+.pulse {
+    background: var(--accent-tan);
+    color: var(--bg-deep);
+    padding: 0 16px;
+    border-radius: 100px;
+    font-size: 0.8em;
+    font-weight: 800;
+    text-transform: uppercase;
+    animation: pulse-glow 2s infinite ease-in-out;
+}
+
+@keyframes pulse-glow {
+    0% {
+        opacity: 0.7;
+        box-shadow: 0 0 0 0 hsla(85, 90%, 45%, 0.4);
+    }
+
+    50% {
+        opacity: 1;
+        box-shadow: 0 0 20px 10px hsla(85, 90%, 45%, 0);
+    }
+
+    100% {
+        opacity: 0.7;
+        box-shadow: 0 0 0 0 hsla(85, 90%, 45%, 0);
+    }
+}
+
+@keyframes skeleton-loading {
+    0% {
+        background-position: 200% 0;
+    }
+
+    100% {
+        background-position: -200% 0;
+    }
+}
+
+@keyframes fadeIn {
+    from {
+        opacity: 0;
+        transform: translateY(10px);
+    }
+
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+/* Footer */
+.main-footer {
+    margin-top: auto;
+    padding: clamp(10px, 2vh, 20px) 0;
+    border-top: 1px solid var(--glass-border);
+    color: var(--text-dim);
+    font-size: 0.9rem;
+    display: flex;
+    justify-content: center;
+}
+
+/* Vertical Compact Mode */
+@media (max-height: 600px) {
+    body {
+        padding: 10px 20px;
+    }
+
+    .main-header {
+        margin-bottom: 2vh;
+    }
+
+    #clock {
+        font-size: clamp(3rem, 10vh, 5rem);
+        margin-bottom: 0;
+    }
+
+    #date {
+        display: none;
+        /* Hide date to save vertical space */
+    }
+
+    .section {
+        padding: 12px 20px;
+    }
+
+    .section-label {
+        margin-bottom: 8px;
+        font-size: 0.8rem;
+    }
+
+    .time-item {
+        margin-bottom: 8px;
+    }
+
+    .time-label {
+        min-width: 80px;
+    }
+
+    .main-footer {
+        display: none;
+        /* Hide footer in very small heights */
+    }
+}
+
+@media (max-height: 400px) {
+    .dashboard {
+        gap: 8px;
+    }
+
+    .secondary-grid {
+        gap: 8px;
+    }
+
+    .section {
+        padding: 8px 16px;
+    }
+
+    .section-label {
+        display: none;
+        /* Hide labels entirely in extreme heights */
+    }
+}

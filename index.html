@@ -1,0 +1,65 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Afficheur Félix Faure | Nantes Transport en Temps Réel</title>
+    <meta name="description" content="Affichage premium en temps réel du tram et du bus à l'arrêt Félix Faure, Nantes.">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;600;800&family=Inter:wght@400;500&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+    <div class="background-overlay"></div>
+    
+    <header class="main-header">
+        <div class="time-container">
+            <h1 id="clock">00:00</h1>
+            <p id="date">Jeudi 16 Avril</p>
+        </div>
+        <div id="market-data" class="market-container">
+            <div class="market-card skeleton"></div>
+            <div class="market-card skeleton"></div>
+        </div>
+        <div id="weather" class="weather-container">
+            <div class="weather-loading skeleton"></div>
+        </div>
+    </header>
+
+    <main class="dashboard">
+        <!-- TRAM SECTION MAJEURE (Neustrie/Rezé) -->
+        <section class="section major-focus" id="tram-neustrie">
+            <div class="section-label">Tram 3 • <span class="highlight">Direction Neustrie / Rezé</span></div>
+            <div id="neustrie-list" class="times-list">
+                <div class="time-item skeleton"></div>
+            </div>
+        </section>
+
+        <div class="secondary-grid">
+            <!-- TRAM SECTION SECONDAIRE (Marcel Paul) -->
+            <section class="section minor-focus" id="tram-marcel-paul">
+                <div class="section-label">Tram 3 • <span class="highlight">Marcel Paul</span></div>
+                <div id="marcel-paul-list" class="times-list">
+                    <div class="time-item skeleton"></div>
+                </div>
+            </section>
+
+            <!-- BUS SECTION -->
+            <section class="section bus-focus" id="bus-26">
+                <div class="section-label">Bus 26</div>
+                <div id="bus-list" class="times-list">
+                    <!-- Both directions will be mixed here with labels -->
+                    <div class="time-item skeleton"></div>
+                </div>
+            </section>
+        </div>
+    </main>
+
+    <footer class="main-footer">
+        <p>Arrêt : Félix Faure • Données Naolib @ <span id="last-update">--:--</span></p>
+    </footer>
+
+    <script type="module" src="app.js"></script>
+</body>
+</html>
