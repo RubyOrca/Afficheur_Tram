@@ -7,6 +7,10 @@
 const STOP_CODE = 'FFAU';
 const LAT = 47.2184;
 const LON = -1.5536;
+const FFAU_TO_COMM_MIN = 5; // Travel time FFAU → Commerce (Tram 3 Neustrie, ~1 stop)
+const FFAU_TO_SILL_MIN = 3; // Travel time FFAU → Sillon de Bretagne (Tram 3 Marcel Paul, ~1 stop)
+const FFAU_TO_DLME_MIN = 9;  // Travel time FFAU → Delorme (Bus 26 H. Région, ~3 stops)
+const FFAU_TO_JNLI_MIN = 20; // Travel time FFAU → Jonelière (Bus 26, ~8 stops)
 
 // --- DOM ELEMENTS ---
 const clockEl = document.getElementById('clock');
@@ -31,7 +35,13 @@ const formatTime = (timeStr) => {
     return timeStr.replace('mn', '');
 };
 
-const createTimeItem = (timeStr, label = '') => {
+const parseMinutes = (timeStr) => {
+    if (timeStr === 'proche') return 0;
+    const n = parseInt(timeStr);
+    return isNaN(n) ? null : n;
+};
+
+const createTimeItem = (timeStr, label = '', etaOffsetMin = null, etaLabel = '') => {
     const formatted = formatTime(timeStr);
     const div = document.createElement('div');
     div.className = 'time-item';
@@ -43,6 +53,15 @@ const createTimeItem = (timeStr, label = '') => {
         html += `<span class="pulse">Arrive</span>`;
     } else {
         html += `<span class="time-value">${formatted}</span><span class="time-unit">mn</span>`;
+    }
+
+    if (etaOffsetMin !== null) {
+        const waitMin = parseMinutes(timeStr);
+        if (waitMin !== null) {
+            const eta = new Date(Date.now() + (waitMin + etaOffsetMin) * 60000);
+            const etaStr = eta.toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' });
+            html += `<span class="stop-eta">${etaLabel} <strong>${etaStr}</strong></span>`;
+        }
     }
 
     div.innerHTML = html;
@@ -84,11 +103,11 @@ const fetchTransport = async () => {
 
             if (line === '3' && (terminus.includes('neustrie') || terminus.includes('rezé')) && counts.n < 2) {
                 const label = counts.n === 0 ? 'Prochain' : 'Suivant';
-                neustrieList.appendChild(createTimeItem(item.temps, label));
+                neustrieList.appendChild(createTimeItem(item.temps, label, FFAU_TO_COMM_MIN, 'Commerce'));
                 counts.n++;
             } else if (line === '3' && terminus.includes('marcel paul') && counts.mp < 2) {
                 const label = counts.mp === 0 ? 'Prochain' : 'Suivant';
-                marcelPaulList.appendChild(createTimeItem(item.temps, label));
+                marcelPaulList.appendChild(createTimeItem(item.temps, label, FFAU_TO_SILL_MIN, 'Sillon'));
                 counts.mp++;
             }
         });
@@ -97,8 +116,8 @@ const fetchTransport = async () => {
         const busHotel = data.filter(i => i.ligne.numLigne === '26' && i.terminus.toLowerCase().includes('région')).slice(0, 2);
         const busJon = data.filter(i => i.ligne.numLigne === '26' && i.terminus.toLowerCase().includes('jonelière')).slice(0, 1);
 
-        busHotel.forEach(item => busListEl.appendChild(createTimeItem(item.temps, 'H. Région')));
-        busJon.forEach(item => busListEl.appendChild(createTimeItem(item.temps, 'Jonelière')));
+        busHotel.forEach(item => busListEl.appendChild(createTimeItem(item.temps, 'H. Région', FFAU_TO_DLME_MIN, 'Delorme')));
+        busJon.forEach(item => busListEl.appendChild(createTimeItem(item.temps, 'Jonelière', FFAU_TO_JNLI_MIN, 'Jonelière')));
 
         // Fallback empty states
         if (!neustrieList.children.length) neustrieList.innerHTML = '<div class="time-item empty">--</div>';
@@ -109,7 +128,10 @@ const fetchTransport = async () => {
 
     } catch (error) {
         console.error('Transport fetch error:', error);
-        neustrieList.innerHTML = '<div class="time-item error">Flux indisponible</div>';
+        const errorHtml = '<div class="time-item error">Flux indisponible</div>';
+        neustrieList.innerHTML = errorHtml;
+        marcelPaulList.innerHTML = errorHtml;
+        busListEl.innerHTML = errorHtml;
     }
 };
 
@@ -165,40 +187,74 @@ const fetchWeather = async () => {
 };
 
 // --- FINANCIAL DATA ---
+
+// Helper: fetch a Yahoo Finance monthly chart
+const fetchYahooChart = (symbol) =>
+    fetch(`https://corsproxy.io/?url=https://query1.finance.yahoo.com/v8/finance/chart/${symbol}?interval=1mo%26range=2mo`)
+        .then(r => r.json());
+
+// Helper: extract current price + monthly % change from Yahoo chart response
+const parseMonthlyChange = (data) => {
+    const prices = data.chart.result[0].indicators.quote[0].close.filter(Boolean);
+    const current = prices[prices.length - 1];
+    const prev = prices[prices.length - 2];
+    return { current, change: ((current - prev) / prev) * 100 };
+};
+
+// Helper: build a market card HTML string
+const buildCard = (name, priceStr, change) => `
+    <div class="market-card">
+        <span class="market-name">${name}</span>
+        <span class="market-price">${priceStr}</span>
+        ${formatVariation(change)}
+    </div>`;
+
+const buildErrorCard = (name) =>
+    `<div class="market-card"><span class="market-error">${name} --</span></div>`;
+
 const fetchMarket = async () => {
+    const [eurUsdRes, tslaRes, spRes, ethRes, fundRes] = await Promise.allSettled([
+        fetchYahooChart('EURUSD%3DX'),                    // EUR/USD
+        fetchYahooChart('TSLA'),                           // Tesla
+        fetchYahooChart('%5EGSPC'),                        // S&P 500
+        fetch('https://api.coingecko.com/api/v3/coins/markets?vs_currency=usd&ids=ethereum&price_change_percentage=30d').then(r => r.json()),
+        fetchYahooChart('0P00001UFS.F'),                   // Indépendance AM France Small & Mid A (Frankfurt)
+    ]);
+
+    let html = '';
+
+    // EUR/USD
     try {
-        // Ethereum: CoinGecko markets endpoint with 30d change
-        const ethRes = await fetch(
-            'https://api.coingecko.com/api/v3/coins/markets?vs_currency=usd&ids=ethereum&price_change_percentage=30d'
-        );
-        const [ethData] = await ethRes.json();
-        const ethPrice = ethData.current_price;
+        const { current, change } = parseMonthlyChange(eurUsdRes.value);
+        html += buildCard('EUR / USD', current.toFixed(4), change);
+    } catch { html += buildErrorCard('EUR/USD'); }
+
+    // TSLA
+    try {
+        const { current, change } = parseMonthlyChange(tslaRes.value);
+        html += buildCard('TSLA', `$${Math.round(current).toLocaleString('fr-FR')}`, change);
+    } catch { html += buildErrorCard('TSLA'); }
+
+    // S&P 500
+    try {
+        const { current, change } = parseMonthlyChange(spRes.value);
+        html += buildCard('S&amp;P 500', Math.round(current).toLocaleString('fr-FR'), change);
+    } catch { html += buildErrorCard('S&P'); }
+
+    // Ethereum
+    try {
+        const ethData = ethRes.value[0];
         const ethChange = ethData.price_change_percentage_30d_in_currency ?? ethData.price_change_percentage_30d;
+        html += buildCard('Ξ Ethereum', `$${Math.round(ethData.current_price).toLocaleString('fr-FR')}`, ethChange);
+    } catch { html += buildErrorCard('ETH'); }
 
-        // S&P 500: Via corsproxy.io to bypass CORS (works in dev and production)
-        const spRes = await fetch('https://corsproxy.io/?url=https://query1.finance.yahoo.com/v8/finance/chart/%5EGSPC?interval=1mo%26range=2mo');
-        const spData = await spRes.json();
-        const spPrices = spData.chart.result[0].indicators.quote[0].close;
-        const spCurrent = spPrices[spPrices.length - 1];
-        const spPrev = spPrices[spPrices.length - 2];
-        const spChange = ((spCurrent - spPrev) / spPrev) * 100;
+    // Fonds Indépendance AM France Small & Mid A (LU0131510165)
+    try {
+        const { current, change } = parseMonthlyChange(fundRes.value);
+        html += buildCard('Indép. AM', `€${current.toFixed(2)}`, change);
+    } catch { html += buildErrorCard('Indép. AM'); }
 
-        marketEl.innerHTML = `
-            <div class="market-card">
-                <span class="market-name">S&amp;P 500</span>
-                <span class="market-price">${Math.round(spCurrent).toLocaleString('fr-FR')}</span>
-                ${formatVariation(spChange)}
-            </div>
-            <div class="market-card">
-                <span class="market-name">Ξ Ethereum</span>
-                <span class="market-price">$${Math.round(ethPrice).toLocaleString('fr-FR')}</span>
-                ${formatVariation(ethChange)}
-            </div>
-        `;
-    } catch (error) {
-        console.error('Market fetch error:', error);
-        marketEl.innerHTML = '<div class="market-error">Données indisponibles</div>';
-    }
+    marketEl.innerHTML = html;
 };
 
 // --- INITIALIZATION ---

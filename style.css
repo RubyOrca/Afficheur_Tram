@@ -28,8 +28,7 @@
 
 body {
     font-family: 'Inter', sans-serif;
-    background-color: var(--bg-deep);
-    background-image: var(--bg-gradient);
+    background: var(--bg-gradient);
     color: var(--text-primary);
     min-height: 100vh;
     display: flex;
@@ -39,8 +38,6 @@ body {
 }
 
 h1,
-h2,
-h3,
 .section-label {
     font-family: 'Outfit', sans-serif;
 }
@@ -93,7 +90,7 @@ h3,
 /* Market Data */
 .market-container {
     display: flex;
-    gap: 12px;
+    gap: 8px;
     align-items: center;
 }
 
@@ -102,18 +99,18 @@ h3,
     backdrop-filter: blur(10px);
     border: 1px solid var(--glass-border);
     border-radius: var(--radius-md);
-    padding: 12px 20px;
+    padding: 10px 14px;
     display: flex;
     flex-direction: column;
     align-items: center;
     gap: 4px;
-    min-width: 120px;
+    min-width: 100px;
     text-align: center;
 }
 
 .market-card.skeleton {
-    min-width: 120px;
-    min-height: 64px;
+    min-width: 100px;
+    min-height: 60px;
 }
 
 .market-name {
@@ -235,6 +232,26 @@ h3,
     font-size: clamp(3rem, 13vmin, 10vh);
     font-weight: 800;
     color: var(--accent-tan);
+    width: 100%;
+    grid-template-columns: clamp(80px, 15vmin, 120px) auto auto 1fr;
+}
+
+.stop-eta {
+    justify-self: end;
+    text-align: right;
+    font-size: clamp(0.75rem, 1.8vmin, 1rem);
+    font-weight: 400;
+    color: var(--text-secondary);
+    line-height: 1.2;
+}
+
+.stop-eta strong {
+    display: block;
+    font-size: clamp(1rem, 2.5vmin, 1.4rem);
+    font-weight: 700;
+    color: var(--text-primary);
+    font-family: 'Outfit', sans-serif;
+    font-variant-numeric: tabular-nums;
 }
 
 /* Secondary Grid */
@@ -251,6 +268,12 @@ h3,
     border-left: 4px solid var(--text-dim);
 }
 
+.minor-focus .time-item,
+.bus-focus .time-item {
+    width: 100%;
+    grid-template-columns: clamp(80px, 15vmin, 120px) auto auto 1fr;
+}
+
 .minor-focus {
     border-left-color: var(--text-primary);
 }
@@ -263,19 +286,6 @@ h3,
 .bus-focus .time-item {
     font-size: clamp(2.5rem, 12vmin, 8vh);
     font-weight: 700;
-}
-
-.section-label.small {
-    margin-top: clamp(8px, 2vh, 16px);
-    font-size: 0.8rem;
-    margin-bottom: clamp(4px, 1vh, 8px);
-    opacity: 0.7;
-}
-
-.times-list.small .time-item {
-    /* Same size now */
-    font-size: clamp(2.5rem, 12vmin, 8vh);
-    color: var(--text-secondary);
 }
 
 /* Time Item details */
@@ -297,10 +307,6 @@ h3,
     text-transform: uppercase;
     color: var(--text-dim);
     letter-spacing: 1px;
-}
-
-.time-value {
-    /* Legacy or specific styling if needed */
 }
 
 .time-unit {
