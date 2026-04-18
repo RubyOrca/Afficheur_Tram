@@ -55,6 +55,61 @@ h1,
     z-index: -1;
 }
 
+/* Banner (TAN alerts or agenda) */
+.banner {
+    display: flex;
+    align-items: center;
+    gap: 14px;
+    padding: 12px 20px;
+    margin-bottom: clamp(10px, 2vh, 20px);
+    border-radius: var(--radius-md);
+    backdrop-filter: blur(10px);
+    background: var(--glass-bg);
+    border: 1px solid var(--glass-border);
+    font-size: clamp(0.85rem, 1.7vmin, 1.05rem);
+    line-height: 1.4;
+    animation: fadeIn 0.5s ease;
+}
+
+.banner[hidden] {
+    display: none;
+}
+
+.banner--alert {
+    background: hsla(10, 80%, 45%, 0.18);
+    border-color: hsla(10, 80%, 60%, 0.5);
+    color: hsl(10, 80%, 85%);
+}
+
+.banner--agenda {
+    background: hsla(200, 70%, 45%, 0.15);
+    border-color: hsla(200, 70%, 60%, 0.4);
+    color: hsl(200, 40%, 90%);
+}
+
+.banner-icon {
+    font-size: 1.4em;
+    flex-shrink: 0;
+}
+
+.banner-text {
+    flex-grow: 1;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.banner-text strong {
+    font-weight: 600;
+    color: var(--text-primary);
+}
+
+.banner-count {
+    font-size: 0.8em;
+    opacity: 0.7;
+    margin-left: 6px;
+    white-space: nowrap;
+}
+
 /* Header */
 .main-header {
     display: flex;

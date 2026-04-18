@@ -37,6 +37,7 @@ const lastUpdateEl = document.getElementById('last-update');
 const marketEl = document.getElementById('market-data');
 const immoEl = document.getElementById('immo-data');
 const switchBtn = document.getElementById('switch-btn');
+const bannerEl = document.getElementById('banner');
 
 // --- UTILS ---
 const updateClock = () => {
@@ -371,6 +372,182 @@ fetchMarket();
 setInterval(fetchAllTransport, 30_000); // 30s
 setInterval(fetchWeather, 900_000);     // 15min
 setInterval(fetchMarket, 600_000);      // 10min
+
+// --- BANNER (TAN alerts → fallback to today's agenda) ---
+const RELEVANT_LINES = ['3', '26', 'C8'];
+const ICAL_URL = import.meta.env.VITE_ICAL_URL;
+
+// Extract affected line numbers from a TAN alert payload
+const alertLines = (a) => {
+    const lines = new Set();
+    try {
+        const la = JSON.parse(a.listes_arrets || '{}').LISTE_ARRETS;
+        (Array.isArray(la) ? la : [la]).filter(Boolean).forEach(x => x.LIGNE && lines.add(String(x.LIGNE)));
+    } catch { }
+    (a.troncons || '').match(/\[([^/]+)\//g)?.forEach(m => {
+        const n = m.slice(1, -1);
+        if (n && n !== '-') lines.add(n);
+    });
+    return [...lines];
+};
+
+const fetchTanAlerts = async () => {
+    const url = 'https://data.nantesmetropole.fr/api/explore/v2.1/catalog/datasets/244400404_info-trafic-tan-temps-reel/records?limit=100';
+    const r = await fetch(url);
+    if (!r.ok) throw new Error(`HTTP ${r.status}`);
+    const data = await r.json();
+    const today = new Date().toISOString().slice(0, 10);
+    return (data.results || []).filter(a => {
+        if (a.perturbation_terminee !== 0) return false;
+        if (a.date_debut && a.date_debut > today) return false;
+        if (a.date_fin && a.date_fin < today) return false;
+        return alertLines(a).some(l => RELEVANT_LINES.includes(l));
+    });
+};
+
+// --- Minimal iCal parser (VEVENT only, basic DAILY/WEEKLY recurrence) ---
+const parseICSDate = (value, params = []) => {
+    const isDate = params.some(p => p === 'VALUE=DATE');
+    if (isDate) {
+        return new Date(+value.slice(0, 4), +value.slice(4, 6) - 1, +value.slice(6, 8));
+    }
+    const y = value.slice(0, 4), mo = value.slice(4, 6), d = value.slice(6, 8);
+    const h = value.slice(9, 11) || '00', mi = value.slice(11, 13) || '00', s = value.slice(13, 15) || '00';
+    const suffix = value.endsWith('Z') ? 'Z' : '';
+    return new Date(`${y}-${mo}-${d}T${h}:${mi}:${s}${suffix}`);
+};
+
+const parseICS = (text) => {
+    const raw = text.replace(/\r/g, '').split('\n');
+    // Unfold continuation lines (leading space/tab)
+    const lines = raw.reduce((acc, l) => {
+        if ((l.startsWith(' ') || l.startsWith('\t')) && acc.length) acc[acc.length - 1] += l.slice(1);
+        else acc.push(l);
+        return acc;
+    }, []);
+
+    const events = [];
+    let ev = null;
+    for (const line of lines) {
+        if (line === 'BEGIN:VEVENT') ev = { allDay: false };
+        else if (line === 'END:VEVENT') { if (ev) events.push(ev); ev = null; }
+        else if (ev) {
+            const i = line.indexOf(':');
+            if (i < 0) continue;
+            const keyRaw = line.slice(0, i), value = line.slice(i + 1);
+            const parts = keyRaw.split(';');
+            const key = parts[0], params = parts.slice(1);
+            if (key === 'SUMMARY') ev.summary = value;
+            else if (key === 'DTSTART') {
+                ev.start = parseICSDate(value, params);
+                ev.allDay = params.some(p => p === 'VALUE=DATE');
+            }
+            else if (key === 'DTEND') ev.end = parseICSDate(value, params);
+            else if (key === 'RRULE') {
+                ev.rrule = Object.fromEntries(value.split(';').map(p => p.split('=')));
+            }
+        }
+    }
+    return events;
+};
+
+const DAY_CODES = ['SU', 'MO', 'TU', 'WE', 'TH', 'FR', 'SA'];
+
+// Return today's occurrence time (Date), or null if the event doesn't occur today
+const occurrenceToday = (ev, now = new Date()) => {
+    const ts = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+    const te = new Date(ts.getTime() + 86400000 - 1);
+    if (!ev.start) return null;
+
+    if (!ev.rrule) {
+        if (ev.allDay) {
+            const startDay = new Date(ev.start.getFullYear(), ev.start.getMonth(), ev.start.getDate());
+            if (startDay.getTime() === ts.getTime()) return ev.start;
+            return null;
+        }
+        if (ev.start >= ts && ev.start <= te) return ev.start;
+        return null;
+    }
+
+    // Recurring
+    if (ev.start > te) return null;
+    const until = ev.rrule.UNTIL ? parseICSDate(ev.rrule.UNTIL, []) : null;
+    if (until && ts > until) return null;
+
+    const build = () => {
+        const o = new Date(ts);
+        if (!ev.allDay) o.setHours(ev.start.getHours(), ev.start.getMinutes(), 0, 0);
+        return o;
+    };
+
+    if (ev.rrule.FREQ === 'DAILY') return build();
+    if (ev.rrule.FREQ === 'WEEKLY') {
+        const byDay = ev.rrule.BYDAY
+            ? ev.rrule.BYDAY.split(',').map(s => s.replace(/^[+-]?\d+/, ''))
+            : [DAY_CODES[ev.start.getDay()]];
+        if (byDay.includes(DAY_CODES[now.getDay()])) return build();
+    }
+    return null;
+};
+
+const fetchAgenda = async () => {
+    if (!ICAL_URL) return [];
+    const proxied = `https://api.cors.lol/?url=${encodeURIComponent(ICAL_URL)}`;
+    const r = await fetch(proxied);
+    if (!r.ok) throw new Error(`HTTP ${r.status}`);
+    const text = await r.text();
+    const events = parseICS(text);
+    const now = new Date();
+    return events
+        .map(e => ({ ...e, occurrence: occurrenceToday(e, now) }))
+        .filter(e => e.occurrence)
+        .sort((a, b) => a.occurrence - b.occurrence);
+};
+
+const renderBanner = async () => {
+    // 1) TAN alerts take priority
+    try {
+        const alerts = await fetchTanAlerts();
+        if (alerts.length) {
+            const first = alerts[0];
+            const title = first.texte_vocal || first.intitule || 'Perturbation en cours';
+            bannerEl.className = 'banner banner--alert';
+            bannerEl.innerHTML = `
+                <span class="banner-icon">⚠️</span>
+                <span class="banner-text"><strong>Trafic TAN</strong> — ${title}${alerts.length > 1 ? `<span class="banner-count">+${alerts.length - 1}</span>` : ''}</span>
+            `;
+            bannerEl.hidden = false;
+            return;
+        }
+    } catch (e) { console.error('TAN alerts error:', e); }
+
+    // 2) Otherwise today's agenda
+    try {
+        const events = await fetchAgenda();
+        if (events.length) {
+            const fmt = (ev) => {
+                if (ev.allDay) return `<strong>${ev.summary || 'Événement'}</strong>`;
+                const t = ev.occurrence.toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' });
+                return `<strong>${t}</strong> ${ev.summary || ''}`;
+            };
+            const preview = events.slice(0, 3).map(fmt).join(' • ');
+            const extra = events.length > 3 ? `<span class="banner-count">+${events.length - 3}</span>` : '';
+            bannerEl.className = 'banner banner--agenda';
+            bannerEl.innerHTML = `
+                <span class="banner-icon">📅</span>
+                <span class="banner-text">${preview}${extra}</span>
+            `;
+            bannerEl.hidden = false;
+            return;
+        }
+    } catch (e) { console.error('Agenda error:', e); }
+
+    // 3) Nothing to show
+    bannerEl.hidden = true;
+};
+
+renderBanner();
+setInterval(renderBanner, 300_000); // 5 min
 
 // --- REAL ESTATE (DVF open data, pre-computed) ---
 // Values from Haversine filter around Félix Faure — refreshed annually.
