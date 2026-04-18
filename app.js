@@ -12,6 +12,7 @@ const FFAU_TO_COMM_MIN = 5; // Travel time FFAU → Commerce (Tram 3 Neustrie, ~
 const FFAU_TO_SILL_MIN = 3; // Travel time FFAU → Sillon de Bretagne (Tram 3 Marcel Paul, ~1 stop)
 const FFAU_TO_DLME_MIN = 9;  // Travel time FFAU → Delorme (Bus 26 H. Région, ~3 stops)
 const FFAU_TO_JNLI_MIN = 20; // Travel time FFAU → Jonelière (Bus 26, ~8 stops)
+const AFRA_TO_SPIN_MIN = 9;  // Travel time AFRA → Saupin (Bus C8, ~3 stops)
 
 // Real estate: pre-computed from DVF open data (data.gouv.fr)
 // Source: files.data.gouv.fr/geo-dvf/latest/csv/{year}/communes/44/44109.csv
@@ -307,7 +308,7 @@ const fetchC8 = async () => {
         let count = 0;
         buses.forEach(item => {
             const label = count === 0 ? 'Prochain' : 'Suivant';
-            c8ListEl.appendChild(createTimeItem(item.temps, label));
+            c8ListEl.appendChild(createTimeItem(item.temps, label, AFRA_TO_SPIN_MIN, 'Saupin'));
             count++;
         });
 
