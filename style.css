@@ -441,6 +441,107 @@ h1,
     justify-content: center;
 }
 
+/* Mobile portrait — stack all transport blocks vertically with equal heights */
+@media (max-width: 768px) {
+    body {
+        padding: 12px;
+        overflow-x: hidden;
+    }
+
+    /* Header stacks vertically and centers */
+    .main-header {
+        flex-direction: column;
+        align-items: stretch;
+        gap: 12px;
+        margin-bottom: 16px;
+    }
+
+    .time-container {
+        text-align: center;
+    }
+
+    #clock {
+        font-size: clamp(2.5rem, 12vw, 4rem);
+    }
+
+    .data-cards {
+        align-items: center;
+        width: 100%;
+    }
+
+    .market-container {
+        flex-wrap: wrap;
+        justify-content: center;
+    }
+
+    .market-card {
+        min-width: 85px;
+        padding: 8px 12px;
+    }
+
+    .weather-container {
+        text-align: center;
+        padding: 12px 16px;
+    }
+
+    .weather-info {
+        justify-content: center;
+    }
+
+    /* Flatten both line-grids into a single 4-row grid with equal heights */
+    .dashboard {
+        display: grid;
+        grid-auto-rows: minmax(150px, 1fr);
+    }
+
+    .line-grid {
+        display: contents;
+    }
+
+    /* Section tuning for tight spaces */
+    .section {
+        padding: 14px 18px;
+    }
+
+    .section-label {
+        height: auto;
+        font-size: 0.75rem;
+        margin-bottom: 10px;
+    }
+
+    /* Smaller transport text on mobile */
+    .tram-focus .time-item,
+    .bus-focus .time-item,
+    .c8-focus .time-item {
+        font-size: clamp(2rem, 11vw, 3rem);
+        height: auto;
+    }
+
+    .stop-eta {
+        font-size: 0.7rem;
+    }
+
+    .stop-eta strong {
+        font-size: 0.95rem;
+    }
+
+    /* Switch button — smaller, still reachable */
+    .switch-btn {
+        padding: 10px 18px;
+        font-size: 0.75rem;
+        bottom: 12px;
+        right: 12px;
+    }
+
+    /* Footer compact */
+    .main-footer {
+        font-size: 0.75rem;
+        text-align: center;
+        padding: 10px 0 70px;
+        /* bottom padding leaves room for floating switch button */
+    }
+}
+
 /* Vertical Compact Mode */
 @media (max-height: 600px) {
     body {
