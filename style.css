@@ -579,8 +579,11 @@ h1,
 /* Mobile portrait — stack all transport blocks vertically with equal heights */
 @media (max-width: 768px) {
     body {
-        padding: 12px;
+        height: auto;           /* annule le 100dvh du desktop */
+        min-height: 100dvh;
+        overflow: auto;         /* rétablit le défilement vertical */
         overflow-x: hidden;
+        padding: 12px;
     }
 
     /* Header stacks vertically and centers */
