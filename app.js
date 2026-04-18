@@ -12,6 +12,17 @@ const FFAU_TO_SILL_MIN = 3; // Travel time FFAU → Sillon de Bretagne (Tram 3 M
 const FFAU_TO_DLME_MIN = 9;  // Travel time FFAU → Delorme (Bus 26 H. Région, ~3 stops)
 const FFAU_TO_JNLI_MIN = 20; // Travel time FFAU → Jonelière (Bus 26, ~8 stops)
 
+// Real estate: pre-computed from DVF open data (data.gouv.fr)
+// Source: files.data.gouv.fr/geo-dvf/latest/csv/{year}/communes/44/44109.csv
+// Method: Haversine filter around Félix Faure (47.2091, -1.5573)
+//   Maisons  : r=1500m — 26 tx (2024), 28 tx (2023)   avg €/m²
+//   Apparts  : r=600m  — 172 tx (2024), 164 tx (2023)  avg €/m²
+// Last updated: April 2025 — refresh annually when DVF data updates
+const IMMO = {
+    maison:  { ppm2_cur: 5413, ppm2_prev: 5643, surface: 200 },  // 2024 vs 2023
+    appart:  { ppm2_cur: 4136, ppm2_prev: 4163, surface: 100 },  // 2024 vs 2023
+};
+
 // --- DOM ELEMENTS ---
 const clockEl = document.getElementById('clock');
 const dateEl = document.getElementById('date');
@@ -21,6 +32,7 @@ const busListEl = document.getElementById('bus-list');
 const weatherEl = document.getElementById('weather');
 const lastUpdateEl = document.getElementById('last-update');
 const marketEl = document.getElementById('market-data');
+const immoEl = document.getElementById('immo-data');
 
 // --- UTILS ---
 const updateClock = () => {
@@ -268,3 +280,21 @@ fetchMarket();
 setInterval(fetchTransport, 30_000);   // 30s
 setInterval(fetchWeather, 900_000);    // 15min
 setInterval(fetchMarket, 600_000);     // 10min
+
+// --- REAL ESTATE (DVF open data, pre-computed) ---
+// Values from Haversine filter around Félix Faure — refreshed annually.
+
+const fmtImmoPrice = (euros) => euros >= 1e6
+    ? `${(euros / 1e6).toFixed(2).replace('.', ',')} M€`
+    : `${Math.round(euros / 1000)} K€`;
+
+const renderImmo = () => {
+    const { maison, appart } = IMMO;
+    const changeM = ((maison.ppm2_cur - maison.ppm2_prev) / maison.ppm2_prev) * 100;
+    const changeA = ((appart.ppm2_cur - appart.ppm2_prev) / appart.ppm2_prev) * 100;
+    immoEl.innerHTML =
+        buildCard(`Maison ${maison.surface}m²`, fmtImmoPrice(maison.ppm2_cur * maison.surface), changeM) +
+        buildCard(`Appart. ${appart.surface}m²`, fmtImmoPrice(appart.ppm2_cur * appart.surface), changeA);
+};
+
+renderImmo();

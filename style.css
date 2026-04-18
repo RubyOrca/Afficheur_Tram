@@ -87,11 +87,23 @@ h1,
     border: 1px solid var(--glass-border);
 }
 
-/* Market Data */
+/* Market + Immo Data */
+.data-cards {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    align-items: center;
+}
+
 .market-container {
     display: flex;
     gap: 8px;
     align-items: center;
+}
+
+#immo-data {
+    border-top: 1px solid var(--glass-border);
+    padding-top: 8px;
 }
 
 .market-card {
