@@ -12,6 +12,8 @@
     --accent-tan: hsl(85, 90%, 45%);
     /* Typical Green TAN */
     --accent-bus: hsl(260, 80%, 65%);
+    --accent-c8: hsl(185, 75%, 50%);
+    /* Teal for Chronobus C8 */
     --accent-warning: hsl(30, 90%, 50%);
 
     /* Spacing & Radii */
@@ -274,14 +276,16 @@ h1,
 }
 
 .minor-focus,
-.bus-focus {
+.bus-focus,
+.c8-focus {
     display: flex;
     flex-direction: column;
     border-left: 4px solid var(--text-dim);
 }
 
 .minor-focus .time-item,
-.bus-focus .time-item {
+.bus-focus .time-item,
+.c8-focus .time-item {
     width: 100%;
     grid-template-columns: clamp(80px, 15vmin, 120px) auto auto 1fr;
 }
@@ -294,8 +298,13 @@ h1,
     border-left-color: var(--accent-bus);
 }
 
+.c8-focus {
+    border-left-color: var(--accent-c8);
+}
+
 .minor-focus .time-item,
-.bus-focus .time-item {
+.bus-focus .time-item,
+.c8-focus .time-item {
     font-size: clamp(2.5rem, 12vmin, 8vh);
     font-weight: 700;
 }

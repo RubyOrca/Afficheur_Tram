@@ -5,6 +5,7 @@
 
 // --- CONFIGURATION ---
 const STOP_CODE = 'FFAU';
+const STOP_CODE_C8 = 'AFRA'; // Anatole France (Bus C8)
 const LAT = 47.2184;
 const LON = -1.5536;
 const FFAU_TO_COMM_MIN = 5; // Travel time FFAU → Commerce (Tram 3 Neustrie, ~1 stop)
@@ -29,6 +30,7 @@ const dateEl = document.getElementById('date');
 const neustrieList = document.getElementById('neustrie-list');
 const marcelPaulList = document.getElementById('marcel-paul-list');
 const busListEl = document.getElementById('bus-list');
+const c8ListEl = document.getElementById('c8-list');
 const weatherEl = document.getElementById('weather');
 const lastUpdateEl = document.getElementById('last-update');
 const marketEl = document.getElementById('market-data');
@@ -280,6 +282,43 @@ fetchMarket();
 setInterval(fetchTransport, 30_000);   // 30s
 setInterval(fetchWeather, 900_000);    // 15min
 setInterval(fetchMarket, 600_000);     // 10min
+
+// --- BUS C8 (Anatole France → Gare Sud / Saupin) ---
+const fetchC8 = async () => {
+    try {
+        const response = await fetch(`https://open.tan.fr/ewp/tempsattente.json/${STOP_CODE_C8}`);
+        if (!response.ok) throw new Error(`HTTP ${response.status}`);
+        const data = await response.json();
+
+        c8ListEl.innerHTML = '';
+
+        // Direction Gare Sud/Saupin = sens 2 (terminus "Saupin" ou "Gare Sud")
+        const buses = data
+            .filter(i => i.ligne.numLigne === 'C8' &&
+                (i.terminus.toLowerCase().includes('saupin') ||
+                 i.terminus.toLowerCase().includes('gare')))
+            .slice(0, 2);
+
+        if (!buses.length) {
+            c8ListEl.innerHTML = '<div class="time-item empty">--</div>';
+            return;
+        }
+
+        let count = 0;
+        buses.forEach(item => {
+            const label = count === 0 ? 'Prochain' : 'Suivant';
+            c8ListEl.appendChild(createTimeItem(item.temps, label));
+            count++;
+        });
+
+    } catch (error) {
+        console.error('C8 fetch error:', error);
+        c8ListEl.innerHTML = '<div class="time-item error">Flux indisponible</div>';
+    }
+};
+
+fetchC8();
+setInterval(fetchC8, 30_000);
 
 // --- REAL ESTATE (DVF open data, pre-computed) ---
 // Values from Haversine filter around Félix Faure — refreshed annually.
