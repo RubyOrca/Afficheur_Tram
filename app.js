@@ -262,23 +262,42 @@ const WEATHER_LABELS = {
 
 const fetchWeather = async () => {
     try {
-        const url = `https://api.open-meteo.com/v1/forecast?latitude=${LAT}&longitude=${LON}&current_weather=true&hourly=precipitation_probability,weathercode&timezone=Europe%2FParis`;
+        const url = `https://api.open-meteo.com/v1/forecast?latitude=${LAT}&longitude=${LON}&current_weather=true&hourly=precipitation_probability,weathercode,temperature_2m&timezone=Europe%2FParis`;
         const response = await fetch(url);
         const data = await response.json();
         const current = data.current_weather;
 
-        // Find the index of the current hour within the hourly.time array
+        // À partir de 22h, on bascule sur la météo de demain à partir de 8h
         const now = new Date();
-        const currentHourISO = now.toISOString().slice(0, 13); // YYYY-MM-DDTHH
         const hourlyTimes = data.hourly.time || [];
-        let startIdx = hourlyTimes.findIndex(t => t.slice(0, 13) === currentHourISO);
-        if (startIdx < 0) startIdx = now.getHours(); // fallback
+        const nightMode = now.getHours() >= 22;
+
+        let startIdx;
+        if (nightMode) {
+            // Cherche l'index correspondant à demain 8h local
+            const tomorrow = new Date(now);
+            tomorrow.setDate(tomorrow.getDate() + 1);
+            const y = tomorrow.getFullYear();
+            const m = String(tomorrow.getMonth() + 1).padStart(2, '0');
+            const d = String(tomorrow.getDate()).padStart(2, '0');
+            const targetISO = `${y}-${m}-${d}T08`;
+            startIdx = hourlyTimes.findIndex(t => t.slice(0, 13) === targetISO);
+            if (startIdx < 0) startIdx = 24 + 8 - now.getHours(); // fallback approx
+        } else {
+            const currentHourISO = now.toISOString().slice(0, 13);
+            startIdx = hourlyTimes.findIndex(t => t.slice(0, 13) === currentHourISO);
+            if (startIdx < 0) startIdx = now.getHours();
+        }
 
         const proba = data.hourly.precipitation_probability[startIdx] ?? 0;
-        const symbol = WEATHER_SYMBOLS[current.weathercode] ?? '🌡️';
-        const label = WEATHER_LABELS[current.weathercode] ?? 'Météo';
+        const displayCode = nightMode ? (data.hourly.weathercode[startIdx] ?? 0) : current.weathercode;
+        const displayTemp = nightMode
+            ? (data.hourly.temperature_2m?.[startIdx] ?? current.temperature)
+            : current.temperature;
+        const symbol = WEATHER_SYMBOLS[displayCode] ?? '🌡️';
+        const label = WEATHER_LABELS[displayCode] ?? 'Météo';
 
-        // Build next 5 hours timeline (skip current hour, show +1h to +5h)
+        // Timeline : en mode nuit on part de 8h (offsets 1..5 = 9h–13h), sinon +1h à +5h
         const hoursHtml = [1, 2, 3, 4, 5].map(offset => {
             const idx = startIdx + offset;
             const t = hourlyTimes[idx];
@@ -300,8 +319,8 @@ const fetchWeather = async () => {
             <div class="weather-info">
                 <span class="weather-icon">${symbol}</span>
                 <div class="weather-text">
-                    <span class="temp">${Math.round(current.temperature)}°C</span>
-                    <span class="condition">${label}</span>
+                    <span class="temp">${Math.round(displayTemp)}°C</span>
+                    <span class="condition">${nightMode ? `Demain 8h · ${label}` : label}</span>
                     <span class="rain-proba">💧 ${proba}% pluie</span>
                 </div>
             </div>
