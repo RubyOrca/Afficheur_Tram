@@ -36,7 +36,6 @@ body {
     overflow: hidden;        /* rien ne déborde — tout doit rentrer */
     display: flex;
     flex-direction: column;
-    overflow-x: hidden;
     padding: clamp(6px, 2vmin, 32px);
 }
 
@@ -579,11 +578,28 @@ h1,
 /* Mobile portrait — stack all transport blocks vertically with equal heights */
 @media (max-width: 768px) {
     body {
-        height: auto;           /* annule le 100dvh du desktop */
+        height: auto;                      /* annule le 100dvh du desktop */
         min-height: 100dvh;
-        overflow: auto;         /* rétablit le défilement vertical */
+        overflow-y: auto;                  /* défilement vertical libre */
         overflow-x: hidden;
+        -webkit-overflow-scrolling: touch; /* scroll fluide iOS */
         padding: 12px;
+    }
+
+    /* Les sections n'ont plus besoin de overflow:hidden sur mobile */
+    .section {
+        overflow: visible;
+    }
+
+    /* Le dashboard reprend son mode flex normal (pas de shrink) */
+    .dashboard {
+        flex: none;
+        min-height: auto;
+    }
+
+    .line-grid {
+        flex: none;
+        min-height: auto;
     }
 
     /* Header stacks vertically and centers */
