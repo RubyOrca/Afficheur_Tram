@@ -36,6 +36,7 @@ const weatherEl = document.getElementById('weather');
 const lastUpdateEl = document.getElementById('last-update');
 const marketEl = document.getElementById('market-data');
 const immoEl = document.getElementById('immo-data');
+const fuelEl = document.getElementById('fuel-data');
 const switchBtn = document.getElementById('switch-btn');
 const bannerEl = document.getElementById('banner');
 
@@ -675,3 +676,34 @@ const renderImmo = () => {
 };
 
 renderImmo();
+
+// --- FUEL PRICE (gazole le moins cher autour de Nantes) ---
+// Source : data.economie.gouv.fr — flux instantané des prix carburants
+const fetchFuel = async () => {
+    try {
+        // Recherche dans un rayon de 10 km autour du centre de Nantes
+        const lat = 47.2091, lon = -1.5573;
+        const where = `within_distance(geo_point, geom'POINT(${lon} ${lat})', 10km) AND gazole_prix IS NOT NULL`;
+        const url = `https://data.economie.gouv.fr/api/explore/v2.1/catalog/datasets/prix-des-carburants-en-france-flux-instantane-v2/records?where=${encodeURIComponent(where)}&order_by=gazole_prix%20asc&limit=1`;
+        const r = await fetch(url);
+        if (!r.ok) throw new Error(`HTTP ${r.status}`);
+        const data = await r.json();
+        const rec = data.results?.[0];
+        if (!rec) { fuelEl.innerHTML = buildErrorCard('Gazole'); return; }
+
+        const price = Number(rec.gazole_prix).toFixed(3).replace('.', ',');
+        const ville = (rec.ville || '').split(' ')[0]; // nom court
+        fuelEl.innerHTML = `
+            <div class="market-card">
+                <span class="market-name">Gazole mini</span>
+                <span class="market-price">${price} €</span>
+                <span class="variation neutral">${ville}</span>
+            </div>`;
+    } catch (e) {
+        console.error('Fuel fetch error:', e);
+        fuelEl.innerHTML = buildErrorCard('Gazole');
+    }
+};
+
+fetchFuel();
+setInterval(fetchFuel, 3_600_000); // 1h

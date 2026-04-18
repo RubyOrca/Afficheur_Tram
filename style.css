@@ -218,6 +218,11 @@ h1,
     color: hsl(10, 80%, 60%);
 }
 
+.variation.neutral {
+    color: var(--text-secondary);
+    font-weight: 500;
+}
+
 .market-error {
     font-size: 0.8rem;
     color: var(--text-dim);
