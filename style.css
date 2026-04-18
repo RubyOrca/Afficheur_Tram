@@ -164,7 +164,10 @@ h1,
     align-items: center;
 }
 
-#immo-data {
+.market-row {
+    display: flex;
+    gap: 8px;
+    align-items: center;
     border-top: 1px solid var(--glass-border);
     padding-top: 8px;
 }
