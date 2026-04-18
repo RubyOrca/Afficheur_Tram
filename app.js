@@ -175,8 +175,8 @@ const fetchMarket = async () => {
         const ethPrice = ethData.current_price;
         const ethChange = ethData.price_change_percentage_30d_in_currency ?? ethData.price_change_percentage_30d;
 
-        // S&P 500: Via Vite proxy to bypass CORS
-        const spRes = await fetch('/yahoo-finance/v8/finance/chart/%5EGSPC?interval=1mo&range=2mo');
+        // S&P 500: Via corsproxy.io to bypass CORS (works in dev and production)
+        const spRes = await fetch('https://corsproxy.io/?url=https://query1.finance.yahoo.com/v8/finance/chart/%5EGSPC?interval=1mo%26range=2mo');
         const spData = await spRes.json();
         const spPrices = spData.chart.result[0].indicators.quote[0].close;
         const spCurrent = spPrices[spPrices.length - 1];
