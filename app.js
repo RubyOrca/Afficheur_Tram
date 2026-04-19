@@ -15,14 +15,25 @@ const FFAU_TO_JNLI_MIN = 20; // Travel time FFAU → Jonelière (Bus 26, ~8 stop
 const AFRA_TO_SPIN_MIN = 9;  // Travel time AFRA → Saupin (Bus C8, ~3 stops)
 
 // Real estate: pre-computed from DVF open data (data.gouv.fr)
-// Source: files.data.gouv.fr/geo-dvf/latest/csv/{year}/communes/44/44109.csv
-// Method: Haversine filter around Félix Faure (47.2091, -1.5573)
-//   Maisons  : r=1500m — 20 tx (2025), 26 tx (2024)   avg €/m²
-//   Apparts  : r=600m  — 194 tx (2025), 172 tx (2024)  avg €/m²
+// Source: files.data.gouv.fr/geo-dvf/latest/csv/{year}/departements/44.csv.gz
+// Method: Haversine filter r=800m autour de Félix Faure (47.2091, -1.5573)
 // Last updated: April 2026 — refresh annually when DVF data updates
-const IMMO = {
-    maison:  { ppm2_cur: 6095, ppm2_prev: 5413, surface: 200 },  // 2025 vs 2024 (+12,6% — 20 tx)
-    appart:  { ppm2_cur: 4024, ppm2_prev: 4136, surface: 100 },  // 2025 vs 2024 (−2,7% — 194 tx)
+const IMMO_HISTORY = {
+    //  année : [ ppm2_moyen, nb_transactions ]
+    appart: {
+        2021: [4990, 551],
+        2022: [4874, 572],
+        2023: [4588, 440],
+        2024: [4282, 417],
+        2025: [4243, 460],
+    },
+    maison: {
+        2021: [4801,  9],
+        2022: [4363,  8],
+        2023: [5139,  6],
+        2024: [4695,  3],
+        2025: [4410,  4],
+    },
 };
 
 // --- DOM ELEMENTS ---
@@ -663,17 +674,39 @@ setInterval(renderBanner, 300_000); // 5 min
 // --- REAL ESTATE (DVF open data, pre-computed) ---
 // Values from Haversine filter around Félix Faure — refreshed annually.
 
-const fmtImmoPrice = (euros) => euros >= 1e6
-    ? `${(euros / 1e6).toFixed(2).replace('.', ',')} M€`
-    : `${Math.round(euros / 1000)} K€`;
-
 const renderImmo = () => {
-    const { maison, appart } = IMMO;
-    const changeM = ((maison.ppm2_cur - maison.ppm2_prev) / maison.ppm2_prev) * 100;
-    const changeA = ((appart.ppm2_cur - appart.ppm2_prev) / appart.ppm2_prev) * 100;
+    const buildImmoCard = (label, history) => {
+        const years = Object.keys(history).map(Number).sort();
+        const latest = years.at(-1);
+        const prev   = years.at(-2);
+        const [ppm2_cur,  tx_cur]  = history[latest];
+        const [ppm2_prev] = history[prev];
+        const pct = ((ppm2_cur - ppm2_prev) / ppm2_prev * 100).toFixed(1);
+        const sign = pct >= 0 ? '+' : '';
+        const cls  = pct >= 0 ? 'positive' : 'negative';
+        const arrow = pct >= 0 ? '▲' : '▼';
+
+        // Mini sparkline textuel : une ligne par année
+        const rows = years.map(y => {
+            const [ppm2, tx] = history[y];
+            const bar = '█'.repeat(Math.round(ppm2 / 1000)) + '░'.repeat(Math.max(0, 6 - Math.round(ppm2 / 1000)));
+            return `<div class="immo-row ${y === latest ? 'immo-row--cur' : ''}">
+                <span class="immo-year">${y}</span>
+                <span class="immo-ppm2">${ppm2.toLocaleString('fr-FR')} €/m²</span>
+                <span class="immo-tx">${tx} tx</span>
+            </div>`;
+        }).join('');
+
+        return `<div class="market-card immo-card">
+            <span class="market-name">${label}</span>
+            <div class="immo-table">${rows}</div>
+            <span class="variation ${cls}">${arrow} ${sign}${pct}% vs ${prev}</span>
+        </div>`;
+    };
+
     immoEl.innerHTML =
-        buildCard(`Maison ${maison.surface}m²`, fmtImmoPrice(maison.ppm2_cur * maison.surface), changeM) +
-        buildCard(`Appart. ${appart.surface}m²`, fmtImmoPrice(appart.ppm2_cur * appart.surface), changeA);
+        buildImmoCard('Appartements · Félix Faure 800m', IMMO_HISTORY.appart) +
+        buildImmoCard('Maisons · Félix Faure 800m', IMMO_HISTORY.maison);
 };
 
 renderImmo();
