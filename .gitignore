@@ -2,4 +2,9 @@ node_modules/
 dist/
 .env
 .env.local
+
+# Fichiers internes Claude Code
 .claude/
+skills_library/
+agents_definition.md
+launcher.ps1
