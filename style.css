@@ -165,12 +165,12 @@ h1,
     align-items: center;
 }
 
-.market-row {
+.immo-bar {
     display: flex;
-    gap: 8px;
-    align-items: center;
+    justify-content: center;
+    padding: 4px 16px;
     border-top: 1px solid var(--glass-border);
-    padding-top: 8px;
+    flex-shrink: 0;
 }
 
 .market-card {
