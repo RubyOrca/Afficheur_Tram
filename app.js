@@ -27,12 +27,12 @@ const IMMO_HISTORY = {
         2024: [4282, 417],
         2025: [4243, 460],
     },
-    maison: {
-        2021: [4801,  9],
-        2022: [4363,  8],
-        2023: [5139,  6],
-        2024: [4695,  3],
-        2025: [4410,  4],
+    maison: {   // rayon 1500m — données plus fiables (26-53 tx/an)
+        2021: [5694, 53],
+        2022: [5573, 46],
+        2023: [5528, 33],
+        2024: [5650, 31],
+        2025: [5530, 26],
     },
 };
 
@@ -705,8 +705,8 @@ const renderImmo = () => {
     };
 
     immoEl.innerHTML =
-        buildImmoCard('Appartements · Félix Faure 800m', IMMO_HISTORY.appart) +
-        buildImmoCard('Maisons · Félix Faure 800m', IMMO_HISTORY.maison);
+        buildImmoCard('Appartements · r=800m', IMMO_HISTORY.appart) +
+        buildImmoCard('Maisons · r=1500m', IMMO_HISTORY.maison);
 };
 
 renderImmo();
