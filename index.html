@@ -16,8 +16,14 @@
 
     <header class="main-header">
         <div class="time-container">
-            <h1 id="clock">00:00</h1>
-            <p id="date">Jeudi 16 Avril</p>
+            <div class="time-inner">
+                <h1 id="clock">00:00</h1>
+                <p id="date">Jeudi 16 Avril</p>
+            </div>
+            <button id="switch-btn" class="switch-btn" type="button" aria-pressed="false" aria-label="Inverser les directions">
+                <span class="switch-icon" aria-hidden="true">⇅</span>
+                <span class="switch-label">Direction</span>
+            </button>
         </div>
         <div class="data-cards">
             <div id="market-data" class="market-container">
@@ -25,7 +31,6 @@
                 <div class="market-card skeleton"></div>
                 <div class="market-card skeleton"></div>
             </div>
-            <button id="extra-toggle" class="immo-toggle" aria-label="Afficher/masquer données supplémentaires" title="Données supplémentaires">⊞</button>
         </div>
         <div id="weather" class="weather-container">
             <div class="weather-loading skeleton"></div>
@@ -70,6 +75,11 @@
         </div>
     </main>
 
+    <button id="extra-toggle" class="extra-toggle-bar" aria-label="Afficher/masquer données supplémentaires">
+        <span id="extra-toggle-arrow">▲</span>
+        <span class="extra-toggle-label">Données supplémentaires</span>
+    </button>
+
     <div class="extra-bar" id="extra-bar">
         <div id="market-extra" class="market-container">
             <div class="market-card skeleton"></div>
@@ -86,11 +96,6 @@
     <footer class="main-footer">
         <p>Arrêt : Félix Faure • Données Naolib @ <span id="last-update">--:--</span></p>
     </footer>
-
-    <button id="switch-btn" class="switch-btn" type="button" aria-pressed="false" aria-label="Inverser les directions">
-        <span class="switch-icon" aria-hidden="true">⇅</span>
-        <span class="switch-label">Switch</span>
-    </button>
 
     <script type="module" src="app.js"></script>
 </body>

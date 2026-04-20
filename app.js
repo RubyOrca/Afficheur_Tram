@@ -780,14 +780,14 @@ const renderImmo = () => {
 renderImmo();
 
 // --- EXTRA BAR TOGGLE (données supplémentaires + immo) ---
-const extraToggleBtn = document.getElementById('extra-toggle');
+const extraToggleBtn  = document.getElementById('extra-toggle');
+const extraArrowEl    = document.getElementById('extra-toggle-arrow');
 if (extraToggleBtn && extraBarEl) {
     const EXTRA_KEY = 'extraBarVisible';
     const setExtraVisible = (visible) => {
         extraBarEl.classList.toggle('extra-bar--hidden', !visible);
-        extraToggleBtn.classList.toggle('active', visible);
         extraToggleBtn.setAttribute('aria-pressed', String(visible));
-        extraToggleBtn.textContent = visible ? '⊟' : '⊞';
+        if (extraArrowEl) extraArrowEl.textContent = visible ? '▲' : '▼';
         localStorage.setItem(EXTRA_KEY, visible ? '1' : '0');
     };
     // Restore saved state (visible by default)
