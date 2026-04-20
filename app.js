@@ -724,7 +724,27 @@ const renderBanner = async () => {
 
     const parts = [];
 
-    // 1. Anniversaires
+    // 1. Agenda
+    if (agendaRes.status === 'fulfilled' && agendaRes.value.length) {
+        const events  = agendaRes.value;
+        const fmt = (ev) => {
+            const pfx = ev.isTomorrow ? 'Demain · ' : '';
+            if (ev.allDay) return `<strong>${pfx}${ev.summary || 'Événement'}</strong>`;
+            const t = ev.occurrence.toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' });
+            return `<strong>${pfx}${t}</strong> ${ev.summary || ''}`;
+        };
+        const preview = events.slice(0, 3).map(fmt).join(' • ');
+        const extra   = events.length > 3 ? `<span class="banner-count">+${events.length - 3}</span>` : '';
+        parts.push(`
+            <div class="banner-row banner--agenda">
+                <span class="banner-icon">📅</span>
+                <span class="banner-text">${preview}${extra}</span>
+            </div>`);
+    } else if (agendaRes.status === 'rejected') {
+        console.error('Agenda error:', agendaRes.reason);
+    }
+
+    // 2. Anniversaires
     if (bdayRes.status === 'fulfilled' && bdayRes.value.length) {
         const now  = new Date();
         const year = now.getFullYear();
@@ -744,7 +764,7 @@ const renderBanner = async () => {
         console.warn('Birthdays error:', bdayRes.reason);
     }
 
-    // 2. Alertes TAN
+    // 3. Alertes TAN
     if (alertRes.status === 'fulfilled' && alertRes.value.length) {
         const alerts = alertRes.value;
         const first  = alerts[0];
@@ -757,26 +777,6 @@ const renderBanner = async () => {
             </div>`);
     } else if (alertRes.status === 'rejected') {
         console.error('TAN alerts error:', alertRes.reason);
-    }
-
-    // 3. Agenda
-    if (agendaRes.status === 'fulfilled' && agendaRes.value.length) {
-        const events  = agendaRes.value;
-        const fmt = (ev) => {
-            const pfx = ev.isTomorrow ? 'Demain · ' : '';
-            if (ev.allDay) return `<strong>${pfx}${ev.summary || 'Événement'}</strong>`;
-            const t = ev.occurrence.toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' });
-            return `<strong>${pfx}${t}</strong> ${ev.summary || ''}`;
-        };
-        const preview = events.slice(0, 3).map(fmt).join(' • ');
-        const extra   = events.length > 3 ? `<span class="banner-count">+${events.length - 3}</span>` : '';
-        parts.push(`
-            <div class="banner-row banner--agenda">
-                <span class="banner-icon">📅</span>
-                <span class="banner-text">${preview}${extra}</span>
-            </div>`);
-    } else if (agendaRes.status === 'rejected') {
-        console.error('Agenda error:', agendaRes.reason);
     }
 
     if (parts.length) {
