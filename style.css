@@ -725,7 +725,7 @@ h1,
 /* Footer */
 .main-footer {
     flex-shrink: 0;
-    padding: clamp(4px, 0.8vh, 10px) 0;
+    padding: clamp(2px, 0.3vh, 4px) 0;
     border-top: 1px solid var(--glass-border);
     color: var(--text-dim);
     font-size: clamp(0.55rem, 1.2vmin, 0.7rem);
