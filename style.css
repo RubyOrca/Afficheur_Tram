@@ -178,28 +178,6 @@ h1,
     align-items: center;
 }
 
-/* Toggle données supplémentaires */
-.immo-toggle {
-    background: none;
-    border: 1px solid var(--glass-border);
-    border-radius: 6px;
-    color: var(--text-dim);
-    cursor: pointer;
-    padding: 2px 7px;
-    font-size: 1rem;
-    line-height: 1;
-    flex-shrink: 0;
-    transition: color 0.2s, border-color 0.2s;
-}
-.immo-toggle:hover {
-    color: var(--text-primary);
-    border-color: var(--text-dim);
-}
-.immo-toggle.active {
-    color: var(--text-primary);
-    border-color: hsla(220, 80%, 70%, 0.5);
-}
-
 /* Barre de données supplémentaires (finance + immo) en bas du dashboard */
 .extra-bar {
     display: flex;
@@ -923,9 +901,6 @@ h1,
 }
 
 /* ── Petit écran en paysage (tablette 8" type Dell Venue 8 Pro, max-height ≤ 850px) ──
-   Sur ces écrans, 5vw est trop large (1280px wide → 64px quelle que soit la hauteur).
-   On rebascule sur dvh pour que la police suive réellement la hauteur disponible.      */
-/* ── Petit écran en paysage (tablette 8" type Dell Venue 8 Pro, max-height ≤ 850px) ──
    La taille de police des blocs transport est gérée par cqh (container queries) et
    s'adapte automatiquement. On réduit seulement l'horloge et les marges ici.        */
 @media screen and (max-height: 850px) and (min-width: 601px) {
@@ -948,10 +923,6 @@ h1,
 
 @media (max-height: 400px) {
     .dashboard {
-        gap: 8px;
-    }
-
-    .secondary-grid {
         gap: 8px;
     }
 

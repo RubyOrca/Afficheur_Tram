@@ -4,11 +4,6 @@
  */
 
 // --- CONFIGURATION ---
-const STOP_CODE = 'FFAU';
-const STOP_CODE_C8 = 'AFRA'; // Anatole France (Bus C8)
-const LAT = 47.2184;
-const LON = -1.5536;
-
 // Villes disponibles pour le switch météo (ordre = cycle du bouton)
 const WEATHER_LOCATIONS = [
     { name: 'Nantes',     lat: 47.2184, lon: -1.5536 },
@@ -107,12 +102,12 @@ const createTimeItem = (timeStr, label = '', etaOffsetMin = null, etaLabel = '')
     return div;
 };
 
-const formatVariation = (pct, period = '') => {
+const formatVariation = (pct, period = '', decimals = 2) => {
     const sign  = pct >= 0 ? '+' : '';
     const cls   = pct >= 0 ? 'positive' : 'negative';
     const arrow = pct >= 0 ? '▲' : '▼';
     const periodStr = period ? ` <span class="var-period">${period}</span>` : '';
-    return `<span class="variation ${cls}">${arrow} ${sign}${pct.toFixed(2)}%${periodStr}</span>`;
+    return `<span class="variation ${cls}">${arrow} ${sign}${pct.toFixed(decimals)}%${periodStr}</span>`;
 };
 
 // --- TRANSPORT ---
@@ -412,6 +407,14 @@ const buildCard = (name, priceStr, change, period = '') => `
 const buildErrorCard = (name) =>
     `<div class="market-card"><span class="market-error">${name} --</span></div>`;
 
+// Helper: build a card from a Yahoo Finance settled result (handles errors gracefully)
+const yahooCard = (res, name, fmt) => {
+    try {
+        const { current, change, days } = parse30dChange(res.value);
+        return buildCard(name, fmt(current), change, `${days}j`);
+    } catch { return buildErrorCard(name); }
+};
+
 const fetchMarket = async () => {
     const [eurUsdRes, tslaRes, spRes, ethRes, fundFrRes, nasdaqRes, sx5eRes, fundEuRes] = await Promise.allSettled([
         fetchYahooChart('EURUSD%3DX'),                    // EUR/USD
@@ -425,11 +428,7 @@ const fetchMarket = async () => {
     ]);
 
     // Ligne du haut : S&P 500 + Ethereum (+ Gazole via fuelEl)
-    let htmlTop = '';
-    try {
-        const { current, change, days } = parse30dChange(spRes.value);
-        htmlTop += buildCard('S&amp;P 500', Math.round(current).toLocaleString('fr-FR'), change, `${days}j`);
-    } catch { htmlTop += buildErrorCard('S&P'); }
+    let htmlTop = yahooCard(spRes, 'S&amp;P 500', v => Math.round(v).toLocaleString('fr-FR'));
     try {
         const ethData   = ethRes.value[0];
         const ethChange = ethData.price_change_percentage_30d_in_currency ?? ethData.price_change_percentage_30d;
@@ -437,31 +436,13 @@ const fetchMarket = async () => {
     } catch { htmlTop += buildErrorCard('ETH'); }
 
     // Barre du bas : EUR/USD | Nasdaq | SX5E | TSLA | Indép. AM France | Indép. AM Europe
-    let htmlExtra = '';
-    try {
-        const { current, change, days } = parse30dChange(eurUsdRes.value);
-        htmlExtra += buildCard('EUR / USD', current.toFixed(4), change, `${days}j`);
-    } catch { htmlExtra += buildErrorCard('EUR/USD'); }
-    try {
-        const { current, change, days } = parse30dChange(nasdaqRes.value);
-        htmlExtra += buildCard('Nasdaq', Math.round(current).toLocaleString('fr-FR'), change, `${days}j`);
-    } catch { htmlExtra += buildErrorCard('Nasdaq'); }
-    try {
-        const { current, change, days } = parse30dChange(sx5eRes.value);
-        htmlExtra += buildCard('SX5E', Math.round(current).toLocaleString('fr-FR'), change, `${days}j`);
-    } catch { htmlExtra += buildErrorCard('SX5E'); }
-    try {
-        const { current, change, days } = parse30dChange(tslaRes.value);
-        htmlExtra += buildCard('TSLA', `$${Math.round(current).toLocaleString('fr-FR')}`, change, `${days}j`);
-    } catch { htmlExtra += buildErrorCard('TSLA'); }
-    try {
-        const { current, change, days } = parse30dChange(fundFrRes.value);
-        htmlExtra += buildCard('Indép. France', `€${current.toFixed(2)}`, change, `${days}j`);
-    } catch { htmlExtra += buildErrorCard('Indép. France'); }
-    try {
-        const { current, change, days } = parse30dChange(fundEuRes.value);
-        htmlExtra += buildCard('Indép. Europe', `€${current.toFixed(2)}`, change, `${days}j`);
-    } catch { htmlExtra += buildErrorCard('Indép. Europe'); }
+    const htmlExtra =
+        yahooCard(eurUsdRes, 'EUR / USD',      v => v.toFixed(4)) +
+        yahooCard(nasdaqRes, 'Nasdaq',         v => Math.round(v).toLocaleString('fr-FR')) +
+        yahooCard(sx5eRes,   'SX5E',           v => Math.round(v).toLocaleString('fr-FR')) +
+        yahooCard(tslaRes,   'TSLA',           v => `$${Math.round(v).toLocaleString('fr-FR')}`) +
+        yahooCard(fundFrRes, 'Indép. France',  v => `€${v.toFixed(2)}`) +
+        yahooCard(fundEuRes, 'Indép. Europe',  v => `€${v.toFixed(2)}`);
 
     // Réinsérer fuel-data en premier (innerHTML écrase le DOM existant)
     marketEl.innerHTML = htmlTop;
@@ -678,7 +659,6 @@ const fetchAgenda = async () => {
     if (!ICAL_URL) return [];
     const text = await fetchViaProxies(ICAL_URL);
     const events = parseICS(text);
-    console.log(`[Agenda] ${events.length} événements parsés dans l'iCal`);
 
     const now = new Date();
     const todayMidnight    = new Date(now.getFullYear(), now.getMonth(), now.getDate());
@@ -689,32 +669,18 @@ const fetchAgenda = async () => {
         ? [{ date: todayMidnight, isTomorrow: false }, { date: tomorrowMidnight, isTomorrow: true }]
         : [{ date: todayMidnight, isTomorrow: false }];
 
-    // Debug: log all events with their RRULE to help diagnose
-    console.log('[Agenda] Tous les événements parsés:');
-    events.forEach(ev => {
-        const rruleStr = ev.rrule ? JSON.stringify(ev.rrule) : 'none';
-        console.log(`  • "${ev.summary}" | start=${ev.start?.toISOString()} | end=${ev.end?.toISOString() ?? 'none'} | allDay=${ev.allDay} | rrule=${rruleStr}`);
-    });
-
     const result = [];
     for (const { date, isTomorrow } of targets) {
         for (const ev of events) {
             const occ = occurrenceOnDate(ev, date);
-            if (occ) {
-                console.log(`[Agenda] ✅ retenu: "${ev.summary}" pour ${date.toDateString()}`);
-                result.push({ ...ev, occurrence: occ, isTomorrow });
-            } else {
-                console.log(`[Agenda] ❌ filtré: "${ev.summary}" pour ${date.toDateString()}`);
-            }
+            if (occ) result.push({ ...ev, occurrence: occ, isTomorrow });
         }
     }
 
-    const sorted = result.sort((a, b) => {
+    return result.sort((a, b) => {
         if (a.isTomorrow !== b.isTomorrow) return a.isTomorrow ? 1 : -1;
         return a.occurrence - b.occurrence;
     });
-    console.log(`[Agenda] ${sorted.length} événement(s) retenu(s) pour aujourd'hui${targets.length > 1 ? ' + demain' : ''}`);
-    return sorted;
 };
 
 // --- BIRTHDAYS (birthdays.csv — généré depuis .data/birthdays.xlsx via gen_birthdays.py) ---
@@ -837,15 +803,11 @@ const renderImmo = () => {
         const prev   = years.at(-2);
         const [ppm2_cur,  tx_cur]  = history[latest];
         const [ppm2_prev] = history[prev];
-        const pct = ((ppm2_cur - ppm2_prev) / ppm2_prev * 100).toFixed(1);
-        const sign = pct >= 0 ? '+' : '';
-        const cls  = pct >= 0 ? 'positive' : 'negative';
-        const arrow = pct >= 0 ? '▲' : '▼';
+        const pct = (ppm2_cur - ppm2_prev) / ppm2_prev * 100;
 
         // Mini sparkline textuel : une ligne par année
         const rows = years.map(y => {
             const [ppm2, tx] = history[y];
-            const bar = '█'.repeat(Math.round(ppm2 / 1000)) + '░'.repeat(Math.max(0, 6 - Math.round(ppm2 / 1000)));
             return `<div class="immo-row ${y === latest ? 'immo-row--cur' : ''}">
                 <span class="immo-year">${y}</span>
                 <span class="immo-ppm2">${ppm2.toLocaleString('fr-FR')} €/m²</span>
@@ -856,7 +818,7 @@ const renderImmo = () => {
         return `<div class="market-card immo-card">
             <span class="market-name">${label}</span>
             <div class="immo-table">${rows}</div>
-            <span class="variation ${cls}">${arrow} ${sign}${pct}% vs ${prev}</span>
+            ${formatVariation(pct, `vs ${prev}`, 1)}
         </div>`;
     };
 
