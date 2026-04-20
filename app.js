@@ -666,28 +666,36 @@ const fetchAgenda = async () => {
     return sorted;
 };
 
-// --- BIRTHDAYS (birthdays.csv — éditable manuellement) ---
+// --- BIRTHDAYS (birthdays.csv — généré depuis .data/birthdays.xlsx via gen_birthdays.py) ---
 const fetchBirthdays = async () => {
     const r = await fetch('./birthdays.csv');
     if (!r.ok) throw new Error(`birthdays.csv HTTP ${r.status}`);
     const text = await r.text();
-    const lines = text.trim().split('\n').slice(1); // skip header
+    const [headerLine, ...lines] = text.trim().split('\n');
+
+    // Détection dynamique des colonnes (insensible à la casse)
+    const headers = headerLine.split(',').map(h => h.trim().toLowerCase());
+    const iName   = headers.indexOf('name');
+    const iMonth  = headers.indexOf('month');
+    const iDay    = headers.indexOf('day');
+    const iYear   = headers.indexOf('birth_year');
+    const iDisp   = headers.indexOf('display');
 
     const now   = new Date();
     const month = now.getMonth() + 1;  // 1-12
     const day   = now.getDate();
-    const year  = now.getFullYear();
 
     return lines
         .map(line => {
-            // CSV simple : name,month,day,birth_year  (birth_year peut être vide)
             const parts = line.trim().split(',');
             if (parts.length < 3) return null;
+            const display = iDisp >= 0 ? parseInt(parts[iDisp], 10) : 1;
+            if (display === 0) return null;  // masqué explicitement
             return {
-                name:      parts[0].trim(),
-                month:     parseInt(parts[1], 10),
-                day:       parseInt(parts[2], 10),
-                birthYear: parts[3] ? parseInt(parts[3], 10) : null,
+                name:      (iName  >= 0 ? parts[iName]  : parts[0]).trim(),
+                month:     parseInt(iMonth >= 0 ? parts[iMonth] : parts[1], 10),
+                day:       parseInt(iDay   >= 0 ? parts[iDay]   : parts[2], 10),
+                birthYear: (iYear  >= 0 && parts[iYear]?.trim()) ? parseInt(parts[iYear], 10) : null,
             };
         })
         .filter(b => b && b.month === month && b.day === day);

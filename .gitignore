@@ -12,4 +12,3 @@ launcher.ps1
 # Données source non commitées (gros fichiers / données privées)
 .data/birthday-calendar.ics
 .data/DVF_Felix_Faure.xlsx
-gen_birthdays.py
