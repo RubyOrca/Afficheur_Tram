@@ -8,3 +8,7 @@ dist/
 skills_library/
 agents_definition.md
 launcher.ps1
+
+# Données privées Facebook (source brute, non commitée)
+birthday-calendar.ics
+gen_birthdays.py

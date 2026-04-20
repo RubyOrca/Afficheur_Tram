@@ -637,18 +637,67 @@ const fetchAgenda = async () => {
     return sorted;
 };
 
+// --- BIRTHDAYS (birthdays.csv — éditable manuellement) ---
+const fetchBirthdays = async () => {
+    const r = await fetch('./birthdays.csv');
+    if (!r.ok) throw new Error(`birthdays.csv HTTP ${r.status}`);
+    const text = await r.text();
+    const lines = text.trim().split('\n').slice(1); // skip header
+
+    const now   = new Date();
+    const month = now.getMonth() + 1;  // 1-12
+    const day   = now.getDate();
+    const year  = now.getFullYear();
+
+    return lines
+        .map(line => {
+            // CSV simple : name,month,day,birth_year  (birth_year peut être vide)
+            const parts = line.trim().split(',');
+            if (parts.length < 3) return null;
+            return {
+                name:      parts[0].trim(),
+                month:     parseInt(parts[1], 10),
+                day:       parseInt(parts[2], 10),
+                birthYear: parts[3] ? parseInt(parts[3], 10) : null,
+            };
+        })
+        .filter(b => b && b.month === month && b.day === day);
+};
+
 const renderBanner = async () => {
-    // Fetch both in parallel — they're independent
-    const [alertRes, agendaRes] = await Promise.allSettled([fetchTanAlerts(), fetchAgenda()]);
+    // Fetch en parallèle — indépendants
+    const [alertRes, agendaRes, bdayRes] = await Promise.allSettled([
+        fetchTanAlerts(), fetchAgenda(), fetchBirthdays()
+    ]);
 
     const parts = [];
 
-    // TAN alerts row
+    // 1. Anniversaires
+    if (bdayRes.status === 'fulfilled' && bdayRes.value.length) {
+        const now  = new Date();
+        const year = now.getFullYear();
+        const fmt  = b => {
+            const age = b.birthYear ? ` · <strong>${year - b.birthYear} ans</strong>` : '';
+            return `<strong>${b.name}</strong>${age}`;
+        };
+        const preview = bdayRes.value.slice(0, 4).map(fmt).join(' • ');
+        const extra   = bdayRes.value.length > 4
+            ? `<span class="banner-count">+${bdayRes.value.length - 4}</span>` : '';
+        parts.push(`
+            <div class="banner-row banner--birthday">
+                <span class="banner-icon">🎂</span>
+                <span class="banner-text">${preview}${extra}</span>
+            </div>`);
+    } else if (bdayRes.status === 'rejected') {
+        console.warn('Birthdays error:', bdayRes.reason);
+    }
+
+    // 2. Alertes TAN
     if (alertRes.status === 'fulfilled' && alertRes.value.length) {
         const alerts = alertRes.value;
-        const first = alerts[0];
-        const title = first.texte_vocal || first.intitule || 'Perturbation en cours';
-        const count = alerts.length > 1 ? `<span class="banner-count">+${alerts.length - 1}</span>` : '';
+        const first  = alerts[0];
+        const title  = first.texte_vocal || first.intitule || 'Perturbation en cours';
+        const count  = alerts.length > 1 ? `<span class="banner-count">+${alerts.length - 1}</span>` : '';
         parts.push(`
             <div class="banner-row banner--alert">
                 <span class="banner-icon">⚠️</span>
@@ -658,9 +707,9 @@ const renderBanner = async () => {
         console.error('TAN alerts error:', alertRes.reason);
     }
 
-    // Agenda row
+    // 3. Agenda
     if (agendaRes.status === 'fulfilled' && agendaRes.value.length) {
-        const events = agendaRes.value;
+        const events  = agendaRes.value;
         const fmt = (ev) => {
             const pfx = ev.isTomorrow ? 'Demain · ' : '';
             if (ev.allDay) return `<strong>${pfx}${ev.summary || 'Événement'}</strong>`;
@@ -668,7 +717,7 @@ const renderBanner = async () => {
             return `<strong>${pfx}${t}</strong> ${ev.summary || ''}`;
         };
         const preview = events.slice(0, 3).map(fmt).join(' • ');
-        const extra = events.length > 3 ? `<span class="banner-count">+${events.length - 3}</span>` : '';
+        const extra   = events.length > 3 ? `<span class="banner-count">+${events.length - 3}</span>` : '';
         parts.push(`
             <div class="banner-row banner--agenda">
                 <span class="banner-icon">📅</span>
