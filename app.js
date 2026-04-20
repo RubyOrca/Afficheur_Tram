@@ -403,12 +403,15 @@ const buildErrorCard = (name) =>
     `<div class="market-card"><span class="market-error">${name} --</span></div>`;
 
 const fetchMarket = async () => {
-    const [eurUsdRes, tslaRes, spRes, ethRes, fundRes] = await Promise.allSettled([
+    const [eurUsdRes, tslaRes, spRes, ethRes, fundFrRes, nasdaqRes, sx5eRes, fundEuRes] = await Promise.allSettled([
         fetchYahooChart('EURUSD%3DX'),                    // EUR/USD
         fetchYahooChart('TSLA'),                           // Tesla
         fetchYahooChart('%5EGSPC'),                        // S&P 500
         fetch('https://api.coingecko.com/api/v3/coins/markets?vs_currency=usd&ids=ethereum&price_change_percentage=30d').then(r => r.json()),
-        fetchYahooChart('0P00001UFS.F'),                   // Indépendance AM France Small & Mid A (Frankfurt)
+        fetchYahooChart('0P00001UFS.F'),                   // Indép. AM France Small & Mid A (Frankfurt)
+        fetchYahooChart('%5EIXIC'),                        // Nasdaq Composite
+        fetchYahooChart('%5ESTOXX50E'),                    // Euro Stoxx 50 (SX5E)
+        fetchYahooChart('0P0001DKPN.F'),                   // Indép. AM Europe Small I/C (Frankfurt)
     ]);
 
     // Ligne du haut : S&P 500 + Ethereum (+ Gazole via fuelEl)
@@ -423,20 +426,32 @@ const fetchMarket = async () => {
         htmlTop += buildCard('Ξ Ethereum', `$${Math.round(ethData.current_price).toLocaleString('fr-FR')}`, ethChange, '30j');
     } catch { htmlTop += buildErrorCard('ETH'); }
 
-    // Barre du bas : EUR/USD + TSLA + Indép. AM
+    // Barre du bas : EUR/USD | Nasdaq | SX5E | TSLA | Indép. AM France | Indép. AM Europe
     let htmlExtra = '';
     try {
         const { current, change, days } = parse30dChange(eurUsdRes.value);
         htmlExtra += buildCard('EUR / USD', current.toFixed(4), change, `${days}j`);
     } catch { htmlExtra += buildErrorCard('EUR/USD'); }
     try {
+        const { current, change, days } = parse30dChange(nasdaqRes.value);
+        htmlExtra += buildCard('Nasdaq', Math.round(current).toLocaleString('fr-FR'), change, `${days}j`);
+    } catch { htmlExtra += buildErrorCard('Nasdaq'); }
+    try {
+        const { current, change, days } = parse30dChange(sx5eRes.value);
+        htmlExtra += buildCard('SX5E', Math.round(current).toLocaleString('fr-FR'), change, `${days}j`);
+    } catch { htmlExtra += buildErrorCard('SX5E'); }
+    try {
         const { current, change, days } = parse30dChange(tslaRes.value);
         htmlExtra += buildCard('TSLA', `$${Math.round(current).toLocaleString('fr-FR')}`, change, `${days}j`);
     } catch { htmlExtra += buildErrorCard('TSLA'); }
     try {
-        const { current, change, days } = parse30dChange(fundRes.value);
-        htmlExtra += buildCard('Indép. AM', `€${current.toFixed(2)}`, change, `${days}j`);
-    } catch { htmlExtra += buildErrorCard('Indép. AM'); }
+        const { current, change, days } = parse30dChange(fundFrRes.value);
+        htmlExtra += buildCard('Indép. France', `€${current.toFixed(2)}`, change, `${days}j`);
+    } catch { htmlExtra += buildErrorCard('Indép. France'); }
+    try {
+        const { current, change, days } = parse30dChange(fundEuRes.value);
+        htmlExtra += buildCard('Indép. Europe', `€${current.toFixed(2)}`, change, `${days}j`);
+    } catch { htmlExtra += buildErrorCard('Indép. Europe'); }
 
     // Réinsérer fuel-data en premier (innerHTML écrase le DOM existant)
     marketEl.innerHTML = htmlTop;
