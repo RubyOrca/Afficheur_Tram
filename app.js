@@ -733,6 +733,24 @@ const renderImmo = () => {
 
 renderImmo();
 
+// --- IMMO TOGGLE ---
+const immoToggleBtn = document.getElementById('immo-toggle');
+const immoRow = immoToggleBtn?.closest('.market-row');
+if (immoToggleBtn && immoRow) {
+    const IMMO_KEY = 'immoVisible';
+    const setImmoVisible = (visible) => {
+        immoRow.classList.toggle('immo-hidden', !visible);
+        immoToggleBtn.classList.toggle('active', visible);
+        immoToggleBtn.setAttribute('aria-pressed', String(visible));
+        localStorage.setItem(IMMO_KEY, visible ? '1' : '0');
+    };
+    // Restore saved state (visible by default)
+    setImmoVisible(localStorage.getItem(IMMO_KEY) !== '0');
+    immoToggleBtn.addEventListener('click', () => {
+        setImmoVisible(immoRow.classList.contains('immo-hidden'));
+    });
+}
+
 // --- FUEL PRICE (gazole le moins cher autour de Nantes) ---
 // Source : data.economie.gouv.fr — flux instantané des prix carburants
 const fetchFuel = async () => {

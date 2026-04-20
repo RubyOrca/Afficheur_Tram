@@ -173,6 +173,33 @@ h1,
     padding-top: 8px;
 }
 
+/* Toggle immo */
+.immo-toggle {
+    background: none;
+    border: 1px solid var(--glass-border);
+    border-radius: 6px;
+    color: var(--text-dim);
+    cursor: pointer;
+    padding: 2px 6px;
+    font-size: 0.9rem;
+    line-height: 1;
+    flex-shrink: 0;
+    transition: color 0.2s, border-color 0.2s;
+}
+.immo-toggle:hover {
+    color: var(--text-primary);
+    border-color: var(--text-dim);
+}
+.immo-toggle.active {
+    color: var(--text-primary);
+    border-color: hsla(220, 80%, 70%, 0.5);
+}
+
+/* État masqué */
+.market-row.immo-hidden #immo-data {
+    display: none;
+}
+
 .market-card {
     background: var(--glass-bg);
     backdrop-filter: blur(10px);
