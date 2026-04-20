@@ -69,6 +69,14 @@ h1,
     display: none;
 }
 
+/* Desktop paysage : les bannières s'affichent côte à côte sur la même ligne */
+@media (min-width: 769px) {
+    .banner {
+        flex-direction: row;
+        align-items: stretch;
+    }
+}
+
 .banner-row {
     display: flex;
     align-items: center;
@@ -80,6 +88,9 @@ h1,
     border: 1px solid var(--glass-border);
     font-size: clamp(0.85rem, 1.7vmin, 1.05rem);
     line-height: 1.4;
+    /* Desktop : chaque bannière prend une part égale de la largeur */
+    flex: 1 1 0;
+    min-width: 0;       /* permet le text-overflow si le texte est long */
 }
 
 .banner-row.banner--alert {
@@ -717,6 +728,11 @@ h1,
 
 /* Mobile portrait — stack all transport blocks vertically with equal heights */
 @media (max-width: 768px) {
+    /* Mobile : bannières empilées verticalement, largeur naturelle */
+    .banner-row {
+        flex: none;
+    }
+
     body {
         height: auto;                      /* annule le 100dvh du desktop */
         min-height: 100dvh;
