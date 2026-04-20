@@ -283,22 +283,25 @@ const fetchWeather = async () => {
         const data = await response.json();
         const current = data.current_weather;
 
-        // À partir de 22h, on bascule sur la météo de demain à partir de 8h
+        // Entre 22h et 7h du matin : afficher la météo à partir de 7h
+        //   - 22h–23h59 : 7h du LENDEMAIN (calendaire)
+        //   - 0h–6h59   : 7h du MÊME JOUR (on est déjà "ce matin")
         const now = new Date();
         const hourlyTimes = data.hourly.time || [];
-        const nightMode = now.getHours() >= 22;
+        const h = now.getHours();
+        const nightMode = h >= 22 || h < 7;
 
         let startIdx;
         if (nightMode) {
-            // Cherche l'index correspondant à demain 8h local
-            const tomorrow = new Date(now);
-            tomorrow.setDate(tomorrow.getDate() + 1);
-            const y = tomorrow.getFullYear();
-            const m = String(tomorrow.getMonth() + 1).padStart(2, '0');
-            const d = String(tomorrow.getDate()).padStart(2, '0');
-            const targetISO = `${y}-${m}-${d}T08`;
+            const targetDate = new Date(now);
+            if (h >= 22) targetDate.setDate(targetDate.getDate() + 1); // soir → lendemain
+            // sinon h < 7 → même jour, 7h ce matin
+            const y = targetDate.getFullYear();
+            const m = String(targetDate.getMonth() + 1).padStart(2, '0');
+            const d = String(targetDate.getDate()).padStart(2, '0');
+            const targetISO = `${y}-${m}-${d}T07`;
             startIdx = hourlyTimes.findIndex(t => t.slice(0, 13) === targetISO);
-            if (startIdx < 0) startIdx = 24 + 8 - now.getHours(); // fallback approx
+            if (startIdx < 0) startIdx = h >= 22 ? (24 - h + 7) : (7 - h); // fallback
         } else {
             // Utiliser l'heure LOCALE (Open-Meteo renvoie Europe/Paris, pas UTC)
             const yy = now.getFullYear();
@@ -341,7 +344,7 @@ const fetchWeather = async () => {
                 <span class="weather-icon">${symbol}</span>
                 <div class="weather-text">
                     <span class="temp">${Math.round(displayTemp)}°C</span>
-                    <span class="condition">${nightMode ? `Demain 8h · ${label}` : label}</span>
+                    <span class="condition">${nightMode ? `${h >= 22 ? 'Demain' : 'Ce matin'} 7h · ${label}` : label}</span>
                     <span class="rain-proba">💧 ${proba}% pluie</span>
                 </div>
             </div>
