@@ -271,6 +271,13 @@ h1,
     font-weight: 500;
 }
 
+.var-period {
+    font-size: 0.78em;
+    font-weight: 400;
+    opacity: 0.55;
+    letter-spacing: 0;
+}
+
 .market-error {
     font-size: 0.8rem;
     color: var(--text-dim);

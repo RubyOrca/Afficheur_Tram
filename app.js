@@ -99,11 +99,12 @@ const createTimeItem = (timeStr, label = '', etaOffsetMin = null, etaLabel = '')
     return div;
 };
 
-const formatVariation = (pct) => {
-    const sign = pct >= 0 ? '+' : '';
-    const cls = pct >= 0 ? 'positive' : 'negative';
+const formatVariation = (pct, period = '') => {
+    const sign  = pct >= 0 ? '+' : '';
+    const cls   = pct >= 0 ? 'positive' : 'negative';
     const arrow = pct >= 0 ? '▲' : '▼';
-    return `<span class="variation ${cls}">${arrow} ${sign}${pct.toFixed(2)}%</span>`;
+    const periodStr = period ? ` <span class="var-period">${period}</span>` : '';
+    return `<span class="variation ${cls}">${arrow} ${sign}${pct.toFixed(2)}%${periodStr}</span>`;
 };
 
 // --- TRANSPORT ---
@@ -349,25 +350,45 @@ const fetchWeather = async () => {
 
 // --- FINANCIAL DATA ---
 
-// Helper: fetch a Yahoo Finance monthly chart
+// Helper: fetch a Yahoo Finance daily chart (35 jours → permet rolling 30j)
 const fetchYahooChart = (symbol) =>
-    fetch(`https://corsproxy.io/?url=https://query1.finance.yahoo.com/v8/finance/chart/${symbol}?interval=1mo%26range=2mo`)
+    fetch(`https://corsproxy.io/?url=https://query1.finance.yahoo.com/v8/finance/chart/${symbol}?interval=1d%26range=35d`)
         .then(r => r.json());
 
-// Helper: extract current price + monthly % change from Yahoo chart response
-const parseMonthlyChange = (data) => {
-    const prices = data.chart.result[0].indicators.quote[0].close.filter(Boolean);
-    const current = prices[prices.length - 1];
-    const prev = prices[prices.length - 2];
-    return { current, change: ((current - prev) / prev) * 100 };
+// Helper: extraire le prix actuel + variation rolling 30j à partir de données journalières
+// Retourne { current, change, days } où days = période réelle utilisée (en jours)
+const parse30dChange = (data) => {
+    const result     = data.chart.result[0];
+    const timestamps = result.timestamp;                          // Unix seconds
+    const closes     = result.indicators.quote[0].close;
+
+    // Dernière clôture non nulle
+    let latestIdx = closes.length - 1;
+    while (latestIdx > 0 && !closes[latestIdx]) latestIdx--;
+
+    const latestTs = timestamps[latestIdx];
+    const target30 = latestTs - 30 * 86400; // 30 jours en arrière
+
+    // Clôture la plus proche de J-30 parmi les données disponibles
+    let prevIdx = 0, minDiff = Infinity;
+    for (let i = 0; i < latestIdx; i++) {
+        if (!closes[i]) continue;
+        const diff = Math.abs(timestamps[i] - target30);
+        if (diff < minDiff) { minDiff = diff; prevIdx = i; }
+    }
+
+    const current = closes[latestIdx];
+    const prev    = closes[prevIdx];
+    const days    = Math.round((timestamps[latestIdx] - timestamps[prevIdx]) / 86400);
+    return { current, change: ((current - prev) / prev) * 100, days };
 };
 
 // Helper: build a market card HTML string
-const buildCard = (name, priceStr, change) => `
+const buildCard = (name, priceStr, change, period = '') => `
     <div class="market-card">
         <span class="market-name">${name}</span>
         <span class="market-price">${priceStr}</span>
-        ${formatVariation(change)}
+        ${formatVariation(change, period)}
     </div>`;
 
 const buildErrorCard = (name) =>
@@ -385,28 +406,28 @@ const fetchMarket = async () => {
     // Ligne du haut : S&P 500 + Ethereum (+ Gazole via fuelEl)
     let htmlTop = '';
     try {
-        const { current, change } = parseMonthlyChange(spRes.value);
-        htmlTop += buildCard('S&amp;P 500', Math.round(current).toLocaleString('fr-FR'), change);
+        const { current, change, days } = parse30dChange(spRes.value);
+        htmlTop += buildCard('S&amp;P 500', Math.round(current).toLocaleString('fr-FR'), change, `${days}j`);
     } catch { htmlTop += buildErrorCard('S&P'); }
     try {
-        const ethData = ethRes.value[0];
+        const ethData   = ethRes.value[0];
         const ethChange = ethData.price_change_percentage_30d_in_currency ?? ethData.price_change_percentage_30d;
-        htmlTop += buildCard('Ξ Ethereum', `$${Math.round(ethData.current_price).toLocaleString('fr-FR')}`, ethChange);
+        htmlTop += buildCard('Ξ Ethereum', `$${Math.round(ethData.current_price).toLocaleString('fr-FR')}`, ethChange, '30j');
     } catch { htmlTop += buildErrorCard('ETH'); }
 
     // Barre du bas : EUR/USD + TSLA + Indép. AM
     let htmlExtra = '';
     try {
-        const { current, change } = parseMonthlyChange(eurUsdRes.value);
-        htmlExtra += buildCard('EUR / USD', current.toFixed(4), change);
+        const { current, change, days } = parse30dChange(eurUsdRes.value);
+        htmlExtra += buildCard('EUR / USD', current.toFixed(4), change, `${days}j`);
     } catch { htmlExtra += buildErrorCard('EUR/USD'); }
     try {
-        const { current, change } = parseMonthlyChange(tslaRes.value);
-        htmlExtra += buildCard('TSLA', `$${Math.round(current).toLocaleString('fr-FR')}`, change);
+        const { current, change, days } = parse30dChange(tslaRes.value);
+        htmlExtra += buildCard('TSLA', `$${Math.round(current).toLocaleString('fr-FR')}`, change, `${days}j`);
     } catch { htmlExtra += buildErrorCard('TSLA'); }
     try {
-        const { current, change } = parseMonthlyChange(fundRes.value);
-        htmlExtra += buildCard('Indép. AM', `€${current.toFixed(2)}`, change);
+        const { current, change, days } = parse30dChange(fundRes.value);
+        htmlExtra += buildCard('Indép. AM', `€${current.toFixed(2)}`, change, `${days}j`);
     } catch { htmlExtra += buildErrorCard('Indép. AM'); }
 
     // Réinsérer fuel-data en premier (innerHTML écrase le DOM existant)
