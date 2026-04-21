@@ -11,9 +11,9 @@ const WEATHER_LOCATIONS = [
     // tidePort.atlantic=true → affiche le coefficient (Atlantique uniquement)
     // pmmeRef = hauteur PM à coeff 45 (morte-eau), coeffSlope = Δcoeff/m
     { name: 'Étel',      lat: 47.6500, lon: -3.2000,
-      tidePort: { code: 'ETEL',     atlantic: true,  pmmeRef: 2.60, coeffSlope: 24.4 } },
+      tidePort: { lat: 47.6500, lng: -3.2000, atlantic: true,  pmmeRef: 2.60, coeffSlope: 24.4 } },
     { name: 'La Ciotat', lat: 43.1742, lon:  5.6046,
-      tidePort: { code: 'LACIOTAT', atlantic: false } },
+      tidePort: { lat: 43.1742, lng:  5.6046, atlantic: false } },
 ];
 const FFAU_TO_COMM_MIN = 5; // Travel time FFAU → Commerce (Tram 3 Neustrie, ~1 stop)
 const FFAU_TO_SILL_MIN = 3; // Travel time FFAU → Sillon de Bretagne (Tram 3 Marcel Paul, ~1 stop)
@@ -284,49 +284,36 @@ const WEATHER_LABELS = {
 };
 
 // --- TIDES ---
-// Prédictions officielles SHOM (Service Hydrographique et Océanographique de la Marine)
-// API SPM V3 — 1 point toutes les 10 min, direct ou via proxy CORS si nécessaire
+// Stormglass.io — API marine avec CORS, retourne directement les extrema PM/BM
+// Tier gratuit : 10 req/h, 50 req/j → suffisant avec le cache 3h (≈8 req/jour)
+// Setup : créer un compte sur stormglass.io → copier la clé → .env.local :
+//   VITE_STORMGLASS_KEY=xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx
 
-const fetchTidesJSON = async (url) => {
-    try {
-        const r = await fetch(url);
-        if (!r.ok) throw new Error(`HTTP ${r.status}`);
-        return await r.json();
-    } catch {
-        const text = await fetchViaProxies(url);
-        return JSON.parse(text);
-    }
-};
+const STORMGLASS_KEY = import.meta.env.VITE_STORMGLASS_KEY;
+const tideCache      = new Map(); // "lat,lng" → { extrema, fetchedAt }
 
 const fetchTides = async (port) => {
-    const now      = new Date();
-    const tomorrow = new Date(now.getTime() + 86400000);
-    const fmtDate  = d => `${String(d.getDate()).padStart(2,'0')}-${String(d.getMonth()+1).padStart(2,'0')}-${d.getFullYear()}`;
-    const url = `https://services.data.shom.fr/spm/V3/prediction?port=${port.code}&dateDebut=${fmtDate(now)}&dateFin=${fmtDate(tomorrow)}&utc=standard`;
+    if (!STORMGLASS_KEY) return [];  // clé absente → pas de marées (silencieux)
 
-    const raw = await fetchTidesJSON(url);
+    const cacheKey = `${port.lat},${port.lng}`;
+    const cached   = tideCache.get(cacheKey);
+    if (cached && Date.now() - cached.fetchedAt < 3 * 3600000) return cached.extrema;
 
-    // Parsing souple — SHOM peut renvoyer plusieurs structures selon la version
-    const arr = Array.isArray(raw) ? raw : (raw.predictions || raw.data || []);
-    const curve = arr.map(pt => {
-        const timeStr = (pt.utc || pt.date || pt.time || pt.dt || '').replace(' ', 'T');
-        const height  = parseFloat(pt.height || pt.hauteur || pt.h || pt.v || 0);
-        const t = new Date(timeStr.includes('+') || timeStr.endsWith('Z') ? timeStr : timeStr + 'Z');
-        return { time: t, height };
-    }).filter(pt => isFinite(pt.time) && isFinite(pt.height));
+    const start = Math.floor(Date.now() / 1000);
+    const end   = start + 48 * 3600;
+    const url   = `https://api.stormglass.io/v2/tide/extremes/point?lat=${port.lat}&lng=${port.lng}&start=${start}&end=${end}`;
 
-    // Extrait les 4 prochains extrema (PM / BM) à partir de maintenant
-    const nowMs   = Date.now();
-    const extrema = [];
-    for (let i = 1; i < curve.length - 1; i++) {
-        if (curve[i].time.getTime() <= nowMs) continue;
-        const prev = curve[i - 1].height;
-        const curr = curve[i].height;
-        const next = curve[i + 1].height;
-        if      (curr > prev && curr > next) extrema.push({ type: 'HM', time: curve[i].time, height: curr });
-        else if (curr < prev && curr < next) extrema.push({ type: 'BM', time: curve[i].time, height: curr });
-        if (extrema.length >= 4) break;
-    }
+    const r = await fetch(url, { headers: { Authorization: STORMGLASS_KEY } });
+    if (!r.ok) throw new Error(`Stormglass HTTP ${r.status}`);
+    const data = await r.json();
+
+    const nowMs  = Date.now();
+    const extrema = (data.data || [])
+        .filter(ev => new Date(ev.time).getTime() > nowMs)
+        .slice(0, 4)
+        .map(ev => ({ type: ev.type === 'high' ? 'HM' : 'BM', time: new Date(ev.time), height: ev.height }));
+
+    tideCache.set(cacheKey, { extrema, fetchedAt: Date.now() });
     return extrema;
 };
 
