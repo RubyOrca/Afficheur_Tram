@@ -166,8 +166,18 @@ h1,
     border-radius: var(--radius-md);
     border: 1px solid var(--glass-border);
     display: flex;
+    flex-wrap: wrap;        /* permet à .tide-bar de passer sur une 2e ligne */
     align-items: center;
     gap: 16px;
+}
+
+/* Wraps .weather-info + .weather-hourly côte à côte (occupe la 1re ligne) */
+.weather-main {
+    display: flex;
+    align-items: center;
+    gap: 16px;
+    flex: 1 1 auto;
+    min-width: 0;
 }
 
 /* Market Data (top row) */
@@ -312,6 +322,61 @@ h1,
 .immo-tx {
     opacity: 0.7;
     white-space: nowrap;
+}
+
+/* Marées — ligne 2 du widget météo, visible uniquement pour les villes côtières */
+.tide-bar {
+    width: 100%;            /* force le passage à la ligne suivante */
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding-top: 8px;
+    border-top: 1px solid var(--glass-border);
+    justify-content: space-around;
+}
+
+.tide-label {
+    font-size: 1.1rem;
+    flex-shrink: 0;
+    opacity: 0.55;
+}
+
+.tide-event {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 1px;
+    text-align: center;
+}
+
+.tide-type {
+    font-size: 0.6rem;
+    font-weight: 700;
+    letter-spacing: 1px;
+    text-transform: uppercase;
+}
+
+.tide-type.hm { color: hsl(200, 80%, 65%); }
+.tide-type.bm { color: hsl(220, 40%, 55%); }
+
+.tide-time {
+    font-size: clamp(0.85rem, 1.8vmin, 1rem);
+    font-weight: 700;
+    font-variant-numeric: tabular-nums;
+    font-family: 'Outfit', sans-serif;
+    color: var(--text-primary);
+}
+
+.tide-height {
+    font-size: 0.68rem;
+    color: var(--text-secondary);
+    font-variant-numeric: tabular-nums;
+}
+
+.tide-coeff {
+    font-size: 0.6rem;
+    color: var(--text-dim);
+    letter-spacing: 0.5px;
 }
 
 .weather-info {
@@ -795,6 +860,12 @@ h1,
         align-items: center;
         padding: 12px 16px;
         gap: 10px;
+    }
+
+    .weather-main {
+        flex-direction: column;
+        align-items: center;
+        width: 100%;
     }
 
     .weather-info {

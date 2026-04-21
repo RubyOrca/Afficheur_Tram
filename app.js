@@ -6,10 +6,14 @@
 // --- CONFIGURATION ---
 // Villes disponibles pour le switch météo (ordre = cycle du bouton)
 const WEATHER_LOCATIONS = [
-    { name: 'Nantes',     lat: 47.2184, lon: -1.5536 },
-    { name: 'Paris',      lat: 48.8566, lon:  2.3522 },
-    { name: 'Étel',       lat: 47.6500, lon: -3.2000 },
-    { name: 'La Ciotat',  lat: 43.1742, lon:  5.6046 },
+    { name: 'Nantes',    lat: 47.2184, lon: -1.5536 },
+    { name: 'Paris',     lat: 48.8566, lon:  2.3522 },
+    // tidePort.atlantic=true → affiche le coefficient (Atlantique uniquement)
+    // pmmeRef = hauteur PM à coeff 45 (morte-eau), coeffSlope = Δcoeff/m
+    { name: 'Étel',      lat: 47.6500, lon: -3.2000,
+      tidePort: { code: 'ETEL',     atlantic: true,  pmmeRef: 2.60, coeffSlope: 24.4 } },
+    { name: 'La Ciotat', lat: 43.1742, lon:  5.6046,
+      tidePort: { code: 'LACIOTAT', atlantic: false } },
 ];
 const FFAU_TO_COMM_MIN = 5; // Travel time FFAU → Commerce (Tram 3 Neustrie, ~1 stop)
 const FFAU_TO_SILL_MIN = 3; // Travel time FFAU → Sillon de Bretagne (Tram 3 Marcel Paul, ~1 stop)
@@ -279,9 +283,84 @@ const WEATHER_LABELS = {
     95: 'Orageux', 96: 'Orage avec grêle', 99: 'Orage avec forte grêle',
 };
 
+// --- TIDES ---
+// Prédictions officielles SHOM (Service Hydrographique et Océanographique de la Marine)
+// API SPM V3 — 1 point toutes les 10 min, direct ou via proxy CORS si nécessaire
+
+const fetchTidesJSON = async (url) => {
+    try {
+        const r = await fetch(url);
+        if (!r.ok) throw new Error(`HTTP ${r.status}`);
+        return await r.json();
+    } catch {
+        const text = await fetchViaProxies(url);
+        return JSON.parse(text);
+    }
+};
+
+const fetchTides = async (port) => {
+    const now      = new Date();
+    const tomorrow = new Date(now.getTime() + 86400000);
+    const fmtDate  = d => `${String(d.getDate()).padStart(2,'0')}-${String(d.getMonth()+1).padStart(2,'0')}-${d.getFullYear()}`;
+    const url = `https://services.data.shom.fr/spm/V3/prediction?port=${port.code}&dateDebut=${fmtDate(now)}&dateFin=${fmtDate(tomorrow)}&utc=standard`;
+
+    const raw = await fetchTidesJSON(url);
+
+    // Parsing souple — SHOM peut renvoyer plusieurs structures selon la version
+    const arr = Array.isArray(raw) ? raw : (raw.predictions || raw.data || []);
+    const curve = arr.map(pt => {
+        const timeStr = (pt.utc || pt.date || pt.time || pt.dt || '').replace(' ', 'T');
+        const height  = parseFloat(pt.height || pt.hauteur || pt.h || pt.v || 0);
+        const t = new Date(timeStr.includes('+') || timeStr.endsWith('Z') ? timeStr : timeStr + 'Z');
+        return { time: t, height };
+    }).filter(pt => isFinite(pt.time) && isFinite(pt.height));
+
+    // Extrait les 4 prochains extrema (PM / BM) à partir de maintenant
+    const nowMs   = Date.now();
+    const extrema = [];
+    for (let i = 1; i < curve.length - 1; i++) {
+        if (curve[i].time.getTime() <= nowMs) continue;
+        const prev = curve[i - 1].height;
+        const curr = curve[i].height;
+        const next = curve[i + 1].height;
+        if      (curr > prev && curr > next) extrema.push({ type: 'HM', time: curve[i].time, height: curr });
+        else if (curr < prev && curr < next) extrema.push({ type: 'BM', time: curve[i].time, height: curr });
+        if (extrema.length >= 4) break;
+    }
+    return extrema;
+};
+
+// Coefficient de marée (Atlantique uniquement) — interpolation linéaire PMME/PMVE
+const tideCoeff = (port, pmHeight) => {
+    if (!port.atlantic) return null;
+    return Math.max(20, Math.min(120, Math.round(45 + (pmHeight - port.pmmeRef) * port.coeffSlope)));
+};
+
+const renderTideBar = (extrema, port) => {
+    const items = extrema.map(ev => {
+        const timeStr   = ev.time.toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit', timeZone: 'Europe/Paris' });
+        const heightStr = ev.height.toFixed(2) + 'm';
+        const coeff     = ev.type === 'HM' ? tideCoeff(port, ev.height) : null;
+        return `
+            <div class="tide-event">
+                <span class="tide-type ${ev.type === 'HM' ? 'hm' : 'bm'}">${ev.type === 'HM' ? '↑ PM' : '↓ BM'}</span>
+                <span class="tide-time">${timeStr}</span>
+                <span class="tide-height">${heightStr}</span>
+                ${coeff != null ? `<span class="tide-coeff">coeff ${coeff}</span>` : ''}
+            </div>`;
+    }).join('');
+    return `<div class="tide-bar"><span class="tide-label">🌊</span>${items}</div>`;
+};
+
 const fetchWeather = async () => {
     try {
         const loc = WEATHER_LOCATIONS[weatherLocIdx] ?? WEATHER_LOCATIONS[0];
+
+        // Lancer la récupération des marées en parallèle si ville côtière
+        const tidesPromise = loc.tidePort
+            ? fetchTides(loc.tidePort).catch(e => { console.error('Tides error:', e); return []; })
+            : null;
+
         const url = `https://api.open-meteo.com/v1/forecast?latitude=${loc.lat}&longitude=${loc.lon}&current_weather=true&hourly=precipitation_probability,weathercode,temperature_2m&timezone=Europe%2FParis`;
         const response = await fetch(url);
         const data = await response.json();
@@ -322,8 +401,8 @@ const fetchWeather = async () => {
         const displayTemp = nightMode
             ? (data.hourly.temperature_2m?.[startIdx] ?? current.temperature)
             : current.temperature;
-        const symbol = WEATHER_SYMBOLS[displayCode] ?? '🌡️';
-        const label = WEATHER_LABELS[displayCode] ?? 'Météo';
+        const symbol   = WEATHER_SYMBOLS[displayCode] ?? '🌡️';
+        const label    = WEATHER_LABELS[displayCode]  ?? 'Météo';
         const cityName = loc.name;
 
         // Timeline : en mode nuit on part de 8h (offsets 1..5 = 9h–13h), sinon +1h à +5h
@@ -344,17 +423,29 @@ const fetchWeather = async () => {
                 </div>`;
         }).join('');
 
-        weatherEl.innerHTML = `
-            <div class="weather-info">
-                <span class="weather-icon">${symbol}</span>
-                <div class="weather-text">
-                    <span class="temp">${Math.round(displayTemp)}°C${cityName ? ` <span class="weather-city">${cityName}</span>` : ''}</span>
-                    <span class="condition">${nightMode ? `${h >= 22 ? 'Demain' : 'Ce matin'} 7h · ${label}` : label}</span>
-                    <span class="rain-proba">💧 ${proba}% pluie</span>
+        // Builder capturant les variables météo locales — appelé deux fois :
+        // 1) tout de suite (sans marées), 2) quand les marées arrivent
+        const buildHtml = (tideHtml = '') => `
+            <div class="weather-main">
+                <div class="weather-info">
+                    <span class="weather-icon">${symbol}</span>
+                    <div class="weather-text">
+                        <span class="temp">${Math.round(displayTemp)}°C${cityName ? ` <span class="weather-city">${cityName}</span>` : ''}</span>
+                        <span class="condition">${nightMode ? `${h >= 22 ? 'Demain' : 'Ce matin'} 7h · ${label}` : label}</span>
+                        <span class="rain-proba">💧 ${proba}% pluie</span>
+                    </div>
                 </div>
+                <div class="weather-hourly">${hoursHtml}</div>
             </div>
-            <div class="weather-hourly">${hoursHtml}</div>
-        `;
+            ${tideHtml}`;
+
+        // Afficher la météo immédiatement, puis injecter les marées silencieusement
+        weatherEl.innerHTML = buildHtml();
+        if (tidesPromise) {
+            tidesPromise.then(extrema => {
+                if (extrema.length) weatherEl.innerHTML = buildHtml(renderTideBar(extrema, loc.tidePort));
+            });
+        }
     } catch (error) {
         console.error('Weather fetch error:', error);
         weatherEl.innerHTML = '<div class="weather-error">--</div>';
