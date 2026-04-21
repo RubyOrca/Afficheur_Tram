@@ -8,12 +8,14 @@
 const WEATHER_LOCATIONS = [
     { name: 'Nantes',    lat: 47.2184, lon: -1.5536 },
     { name: 'Paris',     lat: 48.8566, lon:  2.3522 },
-    // tidePort.atlantic=true → affiche le coefficient (Atlantique uniquement)
-    // pmmeRef = hauteur PM à coeff 45 (morte-eau), coeffSlope = Δcoeff/m
+    // datumOffset : correction Stormglass (réf. MSL) → ZH SHOM, calibrée sur tables SHOM
+    // marnageGVE : marnage Grande Vive-Eau (coeff 120), source Annuaire SHOM
     { name: 'Étel',      lat: 47.6500, lon: -3.2000,
-      tidePort: { lat: 47.6500, lng: -3.2000, atlantic: true,  pmmeRef: 2.60, coeffSlope: 24.4 } },
+      tidePort: { lat: 47.6500, lng: -3.2000, atlantic: true,
+                  datumOffset: 3.27, marnageGVE: 4.44 } },
     { name: 'La Ciotat', lat: 43.1742, lon:  5.6046,
-      tidePort: { lat: 43.1742, lng:  5.6046, atlantic: false } },
+      tidePort: { lat: 43.1742, lng:  5.6046, atlantic: false,
+                  datumOffset: 0.20 } },
 ];
 const FFAU_TO_COMM_MIN = 5; // Travel time FFAU → Commerce (Tram 3 Neustrie, ~1 stop)
 const FFAU_TO_SILL_MIN = 3; // Travel time FFAU → Sillon de Bretagne (Tram 3 Marcel Paul, ~1 stop)
@@ -308,26 +310,37 @@ const fetchTides = async (port) => {
     const data = await r.json();
 
     const nowMs  = Date.now();
+    const offset = port.datumOffset ?? 0;
     const extrema = (data.data || [])
         .filter(ev => new Date(ev.time).getTime() > nowMs)
         .slice(0, 4)
-        .map(ev => ({ type: ev.type === 'high' ? 'HM' : 'BM', time: new Date(ev.time), height: ev.height }));
+        .map(ev => ({
+            type:   ev.type === 'high' ? 'HM' : 'BM',
+            time:   new Date(ev.time),
+            height: ev.height + offset,   // correction référentiel MSL → ZH SHOM
+        }));
 
     tideCache.set(cacheKey, { extrema, fetchedAt: Date.now() });
     return extrema;
 };
 
-// Coefficient de marée (Atlantique uniquement) — interpolation linéaire PMME/PMVE
-const tideCoeff = (port, pmHeight) => {
-    if (!port.atlantic) return null;
-    return Math.max(20, Math.min(120, Math.round(45 + (pmHeight - port.pmmeRef) * port.coeffSlope)));
-};
-
 const renderTideBar = (extrema, port) => {
-    const items = extrema.map(ev => {
+    const items = extrema.map((ev, i) => {
         const timeStr   = ev.time.toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit', timeZone: 'Europe/Paris' });
         const heightStr = ev.height.toFixed(2) + 'm';
-        const coeff     = ev.type === 'HM' ? tideCoeff(port, ev.height) : null;
+
+        // Coefficient : calculé depuis le marnage (PM − BM précédente ou suivante)
+        // Formule SHOM : coeff = round(120 × marnage / marnageGVE)
+        let coeff = null;
+        if (ev.type === 'HM' && port.atlantic && port.marnageGVE) {
+            const adjBM = extrema.slice(0, i).reverse().find(e => e.type === 'BM')
+                       ?? extrema.slice(i + 1).find(e => e.type === 'BM');
+            if (adjBM) {
+                const marnage = ev.height - adjBM.height;
+                coeff = Math.max(20, Math.min(120, Math.round(120 * marnage / port.marnageGVE)));
+            }
+        }
+
         return `
             <div class="tide-event">
                 <span class="tide-type ${ev.type === 'HM' ? 'hm' : 'bm'}">${ev.type === 'HM' ? '↑ PM' : '↓ BM'}</span>
