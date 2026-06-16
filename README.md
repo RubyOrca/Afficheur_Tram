@@ -17,4 +17,19 @@ Le développement est orchestré par quatre agents spécialisés :
 - API Naolib (TAN) Open Data
 
 ## Lancement
-Ouvrez `index.html` dans un navigateur moderne pour voir l'afficheur en action.
+- Développement : `npm install` puis `npm run dev` (Vite).
+- Build statique (GitHub Pages) : `npm run build` → dossier `dist/`.
+
+## Données temps réel (tram / bus)
+
+L'ancienne API `open.tan.fr/ewp/tempsattente.json` a été **coupée par la TAN (déc. 2025)**
+et renvoie désormais des listes vides. Le remplacement officiel est le service **SIRI** de
+Naolib (plateforme `api.okina.fr`), qui exige une authentification par en-tête et **ne
+supporte pas le CORS** : il ne peut donc pas être appelé directement depuis le navigateur.
+
+Un petit **proxy Cloudflare Worker** fait l'intermédiaire (requête SIRI groupée, cache 25 s,
+conversion XML→JSON, CORS). Voir [`worker/README.md`](./worker/README.md) pour le déploiement,
+puis renseigner l'URL du worker dans la variable d'env `VITE_SIRI_PROXY`.
+
+Bonus : SIRI fournit l'horaire *prévu* vs *théorique* → l'afficheur montre désormais la
+**ponctualité en temps réel** (pastille verte à l'heure, `+Nʹ` en retard, `−Nʹ` en avance).

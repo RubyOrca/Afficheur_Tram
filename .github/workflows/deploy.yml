@@ -30,6 +30,7 @@ jobs:
         run: |
           echo "VITE_ICAL_URL=${{ secrets.ICAL_URL }}" > .env.local
           echo "VITE_STORMGLASS_KEY=${{ secrets.STORMGLASS_KEY }}" >> .env.local
+          echo "VITE_SIRI_PROXY=${{ secrets.SIRI_PROXY }}" >> .env.local
       - run: npm run build
 
       - uses: actions/upload-pages-artifact@v3

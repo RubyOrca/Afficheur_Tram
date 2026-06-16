@@ -81,7 +81,16 @@ const parseMinutes = (timeStr) => {
     return isNaN(n) ? null : n;
 };
 
-const createTimeItem = (timeStr, label = '', etaOffsetMin = null, etaLabel = '') => {
+// Pastille de ponctualité temps réel (donnée SIRI : prévu vs théorique)
+//   à l'heure → vert · en retard → orange (+Xʹ) · en avance → bleu (−Xʹ)
+const realtimeDot = (delayMin) => {
+    if (delayMin == null) return '';
+    if (delayMin >= 2)  return `<span class="rt-dot rt-late" title="En retard">+${delayMin}′</span>`;
+    if (delayMin <= -2) return `<span class="rt-dot rt-early" title="En avance">${delayMin}′</span>`;
+    return `<span class="rt-dot rt-ontime" title="À l'heure"></span>`;
+};
+
+const createTimeItem = (timeStr, label = '', etaOffsetMin = null, etaLabel = '', delayMin = null) => {
     const formatted = formatTime(timeStr);
     const div = document.createElement('div');
     div.className = 'time-item';
@@ -94,6 +103,8 @@ const createTimeItem = (timeStr, label = '', etaOffsetMin = null, etaLabel = '')
     } else {
         html += `<span class="time-value">${formatted}</span><span class="time-unit">mn</span>`;
     }
+
+    html += realtimeDot(delayMin);
 
     if (etaOffsetMin !== null) {
         const waitMin = parseMinutes(timeStr);
@@ -197,23 +208,47 @@ const BLOCKS_SWITCHED = [
     },
 ];
 
-const fetchStop = async (stopCode) => {
-    const r = await fetch(`https://open.tan.fr/ewp/tempsattente.json/${stopCode}`);
-    if (!r.ok) throw new Error(`HTTP ${r.status}`);
-    return r.json();
+// Temps réel via le proxy SIRI (Cloudflare Worker — voir worker/README.md).
+// L'ancienne API open.tan.fr/ewp a été coupée par la TAN (déc. 2025).
+const SIRI_PROXY = import.meta.env.VITE_SIRI_PROXY;
+const KNOWN_STOPS = ['FFAU', 'AFRA', 'COMM', 'SILL', 'DLME', 'JNLI', 'SPIN'];
+
+// Récupère tous les passages et reconstruit la forme attendue par le rendu :
+//   { FFAU: [{ ligne:{numLigne}, terminus, temps }, ...], ... }
+// temps = minutes avant départ ('proche' si imminent), trié par ordre chronologique.
+const fetchSiriStopData = async () => {
+    if (!SIRI_PROXY) throw new Error('VITE_SIRI_PROXY non configuré');
+    const r = await fetch(SIRI_PROXY);
+    if (!r.ok) throw new Error(`Proxy HTTP ${r.status}`);
+    const { visits } = await r.json();
+
+    const now = Date.now();
+    const stopData = {};
+    KNOWN_STOPS.forEach(s => { stopData[s] = []; }); // flux OK mais sans passage → liste vide (≠ erreur)
+
+    for (const v of visits || []) {
+        if (!stopData[v.stop]) stopData[v.stop] = [];
+        const ts      = new Date(v.expected).getTime();
+        const diffMin = Math.round((ts - now) / 60000);
+        const temps   = (v.atStop || diffMin <= 0) ? 'proche' : String(diffMin);
+        // Ponctualité temps réel : écart entre l'horaire prévu et le théorique
+        const delayMin = v.aimed ? Math.round((ts - new Date(v.aimed).getTime()) / 60000) : null;
+        stopData[v.stop].push({ ligne: { numLigne: v.line }, terminus: v.terminus, temps, delayMin, _ts: ts });
+    }
+    for (const k in stopData) stopData[k].sort((a, b) => a._ts - b._ts);
+    return stopData;
 };
 
 const fetchAllTransport = async () => {
     const blocks = getBlocks();
 
-    // Collect unique stops & fetch them in parallel
-    const stops = [...new Set(blocks.flatMap(b => b.rows.map(r => r.stop)))];
-    const results = await Promise.allSettled(stops.map(fetchStop));
-    const stopData = {};
-    stops.forEach((stop, i) => {
-        if (results[i].status === 'fulfilled') stopData[stop] = results[i].value;
-        else console.error(`Stop ${stop} fetch failed:`, results[i].reason);
-    });
+    // Un seul appel au proxy couvre tous les arrêts (respecte le quota okina)
+    let stopData = {};
+    try {
+        stopData = await fetchSiriStopData();
+    } catch (e) {
+        console.error('Transport fetch failed:', e);
+    }
 
     // Render each block
     blocks.forEach(block => {
@@ -234,7 +269,7 @@ const fetchAllTransport = async () => {
                 .filter(i => i.ligne.numLigne === block.line && row.match(i.terminus.toLowerCase()))
                 .slice(0, row.count);
             items.forEach((item, idx) => {
-                block.listEl.appendChild(createTimeItem(item.temps, row.labelFn(idx), row.etaMin, row.etaLabel));
+                block.listEl.appendChild(createTimeItem(item.temps, row.labelFn(idx), row.etaMin, row.etaLabel, item.delayMin));
                 appended++;
             });
         }

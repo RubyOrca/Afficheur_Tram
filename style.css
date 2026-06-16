@@ -10,11 +10,21 @@
     --text-dim: hsl(220, 10%, 50%);
 
     --accent-tan: hsl(85, 90%, 45%);
-    /* Typical Green TAN */
+    /* Typical Green TAN — used for brand glow / "Arrive" pulse */
     --accent-bus: hsl(260, 80%, 65%);
     --accent-c8: hsl(185, 75%, 50%);
     /* Teal for Chronobus C8 */
     --accent-warning: hsl(30, 90%, 50%);
+
+    /* Couleurs officielles du réseau Naolib (source GTFS routes.txt) */
+    --line-3:  hsl(205, 67%, 46%);  /* Tram 3  — #2581c4 bleu   */
+    --line-26: hsl(147, 100%, 29%); /* Bus 26  — #009640 vert   */
+    --line-c8: hsl(64, 100%, 41%);  /* C8      — #c8d300 lime   */
+
+    /* Ponctualité temps réel */
+    --rt-ontime: hsl(140, 70%, 48%);
+    --rt-late:   hsl(28, 92%, 55%);
+    --rt-early:  hsl(205, 85%, 62%);
 
     /* Spacing & Radii */
     --radius-lg: 24px;
@@ -550,15 +560,15 @@ h1,
 }
 
 .tram-focus {
-    border-left-color: var(--accent-tan);
+    border-left-color: var(--line-3);
 }
 
 .bus-focus {
-    border-left-color: var(--accent-bus);
+    border-left-color: var(--line-26);
 }
 
 .c8-focus {
-    border-left-color: var(--accent-c8);
+    border-left-color: var(--line-c8);
 }
 
 /* Taille adaptive via container queries (cqh = % de la hauteur de la section).
@@ -570,7 +580,7 @@ h1,
     font-size: clamp(1.8rem, 36cqh, 8rem);
     font-weight: 700;
     width: 100%;
-    grid-template-columns: clamp(80px, 14vmin, 110px) auto auto 1fr;
+    grid-template-columns: clamp(80px, 14vmin, 110px) auto auto auto 1fr;
 }
 
 /* 3 items dans la section → réduction automatique pour éviter le débordement */
@@ -620,6 +630,36 @@ h1,
     font-size: 0.4em;
     font-weight: 400;
     color: var(--text-dim);
+}
+
+/* Pastille de ponctualité temps réel (donnée SIRI) */
+.rt-dot {
+    align-self: center;
+    font-size: clamp(0.6rem, 1.4vmin, 0.85rem);
+    font-weight: 700;
+    font-variant-numeric: tabular-nums;
+    letter-spacing: 0.5px;
+    line-height: 1;
+    white-space: nowrap;
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+}
+
+.rt-dot.rt-ontime {
+    width: 0.55em;
+    height: 0.55em;
+    border-radius: 50%;
+    background: var(--rt-ontime);
+    box-shadow: 0 0 8px hsla(140, 70%, 48%, 0.6);
+}
+
+.rt-dot.rt-late {
+    color: var(--rt-late);
+}
+
+.rt-dot.rt-early {
+    color: var(--rt-early);
 }
 
 /* Skeletons */
