@@ -46,3 +46,31 @@ Sans cette variable, l'afficheur affiche « Flux indisponible » pour les transp
 curl https://tan-siri.<ton-sous-domaine>.workers.dev | head
 # → {"ts":"...","visits":[{"stop":"FFAU","line":"3","mode":"tram","terminus":"Neustrie",...}]}
 ```
+
+## Routes marées + calendrier (ajout 07/2026)
+
+Le worker porte désormais aussi les secrets qui étaient dans le bundle client :
+
+| Route | Rôle | Secret worker requis |
+|---|---|---|
+| `/` | Temps réel SIRI (inchangé) | — |
+| `/tides?lat=&lng=&start=&end=` | Marées Stormglass (cache edge 3 h) | `STORMGLASS_KEY` |
+| `/calendar` | iCal du calendrier privé (cache 1 h) | `ICAL_URL` |
+
+### Déploiement de la mise à jour
+
+```bash
+cd worker
+npx wrangler deploy
+npx wrangler secret put STORMGLASS_KEY   # coller la clé stormglass.io
+npx wrangler secret put ICAL_URL         # coller l'URL secrète Google Calendar
+```
+
+Puis :
+1. Supprimer les *Repository secrets* GitHub `ICAL_URL` et `STORMGLASS_KEY`
+   (plus utilisés par le workflow) et re-déclencher le déploiement Pages →
+   le nouveau bundle ne contient plus aucun secret.
+2. Dans `.env.local` local, seules `VITE_SIRI_PROXY` reste utile ;
+   `VITE_ICAL_URL` / `VITE_STORMGLASS_KEY` peuvent être supprimées.
+3. Test : `curl "https://tan-siri.<sous-domaine>.workers.dev/calendar" | head -3`
+   et `/tides?lat=47.2&lng=-1.55&start=<epoch>&end=<epoch>`.

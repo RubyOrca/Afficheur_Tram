@@ -321,16 +321,15 @@ const WEATHER_LABELS = {
 };
 
 // --- TIDES ---
-// Stormglass.io — API marine avec CORS, retourne directement les extrema PM/BM
-// Tier gratuit : 10 req/h, 50 req/j → suffisant avec le cache 3h (≈8 req/jour)
-// Setup : créer un compte sur stormglass.io → copier la clé → .env.local :
-//   VITE_STORMGLASS_KEY=xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx
+// Marées via le worker (route /tides) : la clé Stormglass vit côté worker
+// (wrangler secret put STORMGLASS_KEY), plus rien dans le bundle publié.
+// Tier gratuit Stormglass : 10 req/h, 50 req/j → le cache edge 3h du worker
+// mutualise tous les visiteurs (≈8 req/jour).
 
-const STORMGLASS_KEY = import.meta.env.VITE_STORMGLASS_KEY;
-const tideCache      = new Map(); // "lat,lng" → { extrema, fetchedAt }
+const tideCache = new Map(); // "lat,lng" → { extrema, fetchedAt }
 
 const fetchTides = async (port) => {
-    if (!STORMGLASS_KEY) return [];  // clé absente → pas de marées (silencieux)
+    if (!SIRI_PROXY) return [];  // worker absent → pas de marées (silencieux)
 
     const cacheKey = `${port.lat},${port.lng}`;
     const cached   = tideCache.get(cacheKey);
@@ -340,9 +339,9 @@ const fetchTides = async (port) => {
     // même quand la première marée à afficher est une PM (ex: page ouverte le soir)
     const start = Math.floor((Date.now() - 8 * 3600000) / 1000);
     const end   = start + 56 * 3600; // 8h passées + 48h à venir
-    const url   = `https://api.stormglass.io/v2/tide/extremes/point?lat=${port.lat}&lng=${port.lng}&start=${start}&end=${end}`;
+    const url   = `${SIRI_PROXY.replace(/\/$/, '')}/tides?lat=${port.lat}&lng=${port.lng}&start=${start}&end=${end}`;
 
-    const r = await fetch(url, { headers: { Authorization: STORMGLASS_KEY } });
+    const r = await fetch(url);
     if (!r.ok) throw new Error(`Stormglass HTTP ${r.status}`);
     const data = await r.json();
 
@@ -623,7 +622,6 @@ setInterval(fetchMarket, 600_000);      // 10min
 
 // --- BANNER (TAN alerts → fallback to today's agenda) ---
 const RELEVANT_LINES = ['3'];
-const ICAL_URL = import.meta.env.VITE_ICAL_URL;
 
 // Extract affected line numbers from a TAN alert payload
 const alertLines = (a) => {
@@ -765,32 +763,14 @@ const occurrenceOnDate = (ev, target) => {
     return null;
 };
 
-// Plusieurs proxies CORS en fallback (les proxies publics sont instables)
-const CORS_PROXIES = [
-    u => `https://api.cors.lol/?url=${encodeURIComponent(u)}`,
-    u => `https://api.allorigins.win/raw?url=${encodeURIComponent(u)}`,
-    u => `https://corsproxy.io/?${encodeURIComponent(u)}`,
-];
-
-const fetchViaProxies = async (url) => {
-    const errors = [];
-    for (const build of CORS_PROXIES) {
-        try {
-            const r = await fetch(build(url));
-            if (!r.ok) { errors.push(`${build.name || 'proxy'} HTTP ${r.status}`); continue; }
-            const text = await r.text();
-            if (!text || text.length < 20) { errors.push('empty body'); continue; }
-            return text;
-        } catch (e) {
-            errors.push(e.message);
-        }
-    }
-    throw new Error(`Tous les proxies CORS ont échoué: ${errors.join(' | ')}`);
-};
-
+// Calendrier via le worker (route /calendar) : l'URL iCal privée vit côté
+// worker (wrangler secret put ICAL_URL). Plus de proxies CORS publics tiers,
+// qui voyaient passer le contenu du calendrier.
 const fetchAgenda = async () => {
-    if (!ICAL_URL) return [];
-    const text = await fetchViaProxies(ICAL_URL);
+    if (!SIRI_PROXY) return [];
+    const r = await fetch(`${SIRI_PROXY.replace(/\/$/, '')}/calendar`);
+    if (!r.ok) throw new Error(`calendar HTTP ${r.status}`);
+    const text = await r.text();
     const events = parseICS(text);
 
     const now = new Date();

@@ -118,11 +118,83 @@ const fetchFromOkina = async () => {
     return parseSiri(xml);
 };
 
+// --- Routes secondaires : marées + calendrier -------------------------------
+// Les secrets (clé Stormglass, URL iCal privée) vivent côté worker :
+//   wrangler secret put STORMGLASS_KEY
+//   wrangler secret put ICAL_URL
+// Le client n'embarque plus AUCUN secret dans le bundle publié.
+
+const TIDES_TTL    = 3 * 3600;   // 3 h — même cadence que l'ancien cache client
+const CALENDAR_TTL = 3600;       // 1 h
+
+const handleTides = async (request, env, ctx) => {
+    if (!env.STORMGLASS_KEY) {
+        return new Response(JSON.stringify({ error: 'STORMGLASS_KEY absent (wrangler secret put STORMGLASS_KEY)' }),
+            { status: 503, headers: jsonHeaders(false) });
+    }
+    const u = new URL(request.url);
+    const lat = u.searchParams.get('lat'), lng = u.searchParams.get('lng');
+    const start = u.searchParams.get('start'), end = u.searchParams.get('end');
+    if (!lat || !lng || !start || !end) {
+        return new Response(JSON.stringify({ error: 'params requis : lat, lng, start, end' }),
+            { status: 400, headers: jsonHeaders(false) });
+    }
+    // Clé de cache SANS start/end (qui changent à chaque appel) : un seul
+    // appel Stormglass par port et par fenêtre de 3 h, tous visiteurs confondus.
+    const bucket = Math.floor(Date.now() / (TIDES_TTL * 1000));
+    const cache = caches.default;
+    const cacheKey = new Request(new URL(`/tides-cache-v1?lat=${lat}&lng=${lng}&b=${bucket}`, request.url));
+    const hit = await cache.match(cacheKey);
+    if (hit) return new Response(await hit.text(), { headers: jsonHeaders(true) });
+
+    const api = `https://api.stormglass.io/v2/tide/extremes/point?lat=${lat}&lng=${lng}&start=${start}&end=${end}`;
+    const r = await fetch(api, { headers: { Authorization: env.STORMGLASS_KEY } });
+    if (!r.ok) {
+        return new Response(JSON.stringify({ error: `Stormglass HTTP ${r.status}` }),
+            { status: 502, headers: jsonHeaders(false) });
+    }
+    const body = await r.text();
+    ctx.waitUntil(cache.put(cacheKey, new Response(body, {
+        headers: { 'Content-Type': 'application/json', 'Cache-Control': `max-age=${TIDES_TTL}` },
+    })));
+    return new Response(body, { headers: jsonHeaders(false) });
+};
+
+const handleCalendar = async (request, env, ctx) => {
+    if (!env.ICAL_URL) {
+        return new Response('ICAL_URL absent (wrangler secret put ICAL_URL)',
+            { status: 503, headers: { ...CORS_HEADERS } });
+    }
+    const cache = caches.default;
+    const cacheKey = new Request(new URL('/calendar-cache-v1', request.url));
+    const hit = await cache.match(cacheKey);
+    if (hit) return new Response(await hit.text(), { headers: icsHeaders(true) });
+
+    const r = await fetch(env.ICAL_URL);
+    if (!r.ok) return new Response(`iCal HTTP ${r.status}`, { status: 502, headers: { ...CORS_HEADERS } });
+    const body = await r.text();
+    ctx.waitUntil(cache.put(cacheKey, new Response(body, {
+        headers: { 'Content-Type': 'text/calendar', 'Cache-Control': `max-age=${CALENDAR_TTL}` },
+    })));
+    return new Response(body, { headers: icsHeaders(false) });
+};
+
+const icsHeaders = (cached) => ({
+    'Content-Type': 'text/calendar; charset=utf-8',
+    'Cache-Control': `public, max-age=${CALENDAR_TTL}`,
+    'X-Cache': cached ? 'HIT' : 'MISS',
+    ...CORS_HEADERS,
+});
+
 export default {
     async fetch(request, env, ctx) {
         if (request.method === 'OPTIONS') {
             return new Response(null, { headers: CORS_HEADERS });
         }
+
+        const path = new URL(request.url).pathname;
+        if (path === '/tides')    return handleTides(request, env, ctx);
+        if (path === '/calendar') return handleCalendar(request, env, ctx);
 
         // Cache edge partagé : 1 appel okina max toutes les 25 s, tous visiteurs confondus
         const cache = caches.default;
