@@ -1037,3 +1037,39 @@ h1,
         /* Hide labels entirely in extreme heights */
     }
 }
+
+/* Horodatage figé : le flux temps réel est indisponible, on affiche le dernier
+   état connu (repli d'écran dégradé, voir fetchAllTransport). */
+#last-update.stale {
+    color: #e0a83e;
+    font-style: italic;
+}
+
+/* Veille nocturne : overlay noir quasi opaque au-dessus de tout, fondu 2 s ;
+   seule l'horloge reste lisible, très atténuée (classe posée par checkSleep).
+   L'overlay existe en permanence (opacité 0) pour que la transition joue
+   dans les deux sens. */
+body::after {
+    content: '';
+    position: fixed;
+    inset: 0;
+    background: #000;
+    opacity: 0;
+    z-index: 90;
+    transition: opacity 2s ease;
+    pointer-events: none;
+}
+
+body.sleep-mode::after {
+    opacity: 0.94;
+}
+
+#clock {
+    transition: opacity 2s ease;
+}
+
+body.sleep-mode #clock {
+    position: relative;
+    z-index: 91;              /* au-dessus de l'overlay */
+    opacity: 0.28;
+}

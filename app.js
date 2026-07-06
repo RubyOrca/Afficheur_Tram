@@ -17,6 +17,11 @@ const WEATHER_LOCATIONS = [
       tidePort: { lat: 43.1742, lng:  5.6046, atlantic: false,
                   datumOffset: 0.20 } },
 ];
+// Veille nocturne : écran atténué (overlay) + fetch espacés entre ces heures.
+// Surcharge par URL : ?sleep=23:00-06:00 (plage) ou ?sleep=off (désactivé).
+const SLEEP_START = '22:00';
+const SLEEP_END   = '06:30';
+
 const FFAU_TO_COMM_MIN = 5; // Travel time FFAU → Commerce (Tram 3 Neustrie, ~1 stop)
 const FFAU_TO_SILL_MIN = 3; // Travel time FFAU → Sillon de Bretagne (Tram 3 Marcel Paul, ~1 stop)
 const FFAU_TO_DLME_MIN = 9;  // Travel time FFAU → Delorme (Bus 26 H. Région, ~3 stops)
@@ -62,11 +67,63 @@ const extraBarEl = document.getElementById('extra-bar');
 const switchBtn = document.getElementById('switch-btn');
 const bannerEl = document.getElementById('banner');
 
+// --- VEILLE NOCTURNE ---
+// Plage effective : URL ?sleep=HH:MM-HH:MM > constantes ; ?sleep=off désactive.
+const sleepRange = (() => {
+    const param = new URLSearchParams(location.search).get('sleep');
+    if (param === 'off') return null;
+    const m = /^(\d{1,2}:\d{2})-(\d{1,2}:\d{2})$/.exec(param || '');
+    return m ? { start: m[1], end: m[2] } : { start: SLEEP_START, end: SLEEP_END };
+})();
+
+const toMinutes = (hhmm) => {
+    const [h, m] = hhmm.split(':').map(Number);
+    return h * 60 + m;
+};
+
+// Gère les plages traversant minuit (ex. 22:00-06:30).
+const isSleepTime = (now) => {
+    if (!sleepRange) return false;
+    const cur = now.getHours() * 60 + now.getMinutes();
+    const start = toMinutes(sleepRange.start), end = toMinutes(sleepRange.end);
+    return start <= end ? (cur >= start && cur < end) : (cur >= start || cur < end);
+};
+
+let SLEEPING = false;
+
+// Wrappe un callback d'intervalle : en veille, ne l'exécute qu'un cycle sur
+// `everyN` (0 = jamais). Le refresh complet au réveil rattrape le reste.
+const unlessSleeping = (fn, everyN = 0) => {
+    let skipped = 0;
+    return () => {
+        if (!SLEEPING) { skipped = 0; fn(); return; }
+        skipped++;
+        if (everyN > 0 && skipped % everyN === 0) fn();
+    };
+};
+
+const checkSleep = (now) => {
+    const asleep = isSleepTime(now);
+    if (asleep === SLEEPING) return;
+    const waking = SLEEPING && !asleep;
+    SLEEPING = asleep;
+    document.body.classList.toggle('sleep-mode', asleep);
+    if (waking) {
+        // Réveil : données fraîches immédiatement sur tous les blocs.
+        fetchAllTransport();
+        fetchWeather();
+        fetchMarket();
+        renderBanner();
+        fetchFuel();
+    }
+};
+
 // --- UTILS ---
 const updateClock = () => {
     const now = new Date();
     clockEl.textContent = now.toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' });
     dateEl.textContent = now.toLocaleDateString('fr-FR', { weekday: 'long', day: 'numeric', month: 'long' });
+    checkSleep(now);
 };
 
 const formatTime = (timeStr) => {
@@ -239,15 +296,25 @@ const fetchSiriStopData = async () => {
     return stopData;
 };
 
+// Dernier état transport valide : sert d'écran dégradé si un refresh échoue
+// (coupure réseau/worker), au lieu de vider le tableau. Affiché « figé HH:MM ».
+let lastGoodStopData = null;
+let lastGoodAt = null;
+
 const fetchAllTransport = async () => {
     const blocks = getBlocks();
 
     // Un seul appel au proxy couvre tous les arrêts (respecte le quota okina)
     let stopData = {};
+    let stale = false;
     try {
         stopData = await fetchSiriStopData();
+        lastGoodStopData = stopData;
+        lastGoodAt = Date.now();
     } catch (e) {
         console.error('Transport fetch failed:', e);
+        // Repli sur le dernier état connu (marqué figé) plutôt que « indisponible ».
+        if (lastGoodStopData) { stopData = lastGoodStopData; stale = true; }
     }
 
     // Render each block
@@ -281,7 +348,14 @@ const fetchAllTransport = async () => {
         }
     });
 
-    lastUpdateEl.textContent = new Date().toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' });
+    if (stale && lastGoodAt) {
+        const t = new Date(lastGoodAt).toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' });
+        lastUpdateEl.textContent = `figé ${t}`;
+        lastUpdateEl.classList.add('stale');
+    } else {
+        lastUpdateEl.textContent = new Date().toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' });
+        lastUpdateEl.classList.remove('stale');
+    }
 };
 
 // Switch button handler
@@ -616,9 +690,11 @@ if (weatherLocBtn) {
 fetchWeather();
 fetchMarket();
 
-setInterval(fetchAllTransport, 30_000); // 30s
-setInterval(fetchWeather, 900_000);     // 15min
-setInterval(fetchMarket, 600_000);      // 10min
+// En veille : transport 1 cycle sur 10 (≈5 min, l'appli reste tiède),
+// le reste suspendu (refresh complet au réveil via checkSleep).
+setInterval(unlessSleeping(fetchAllTransport, 10), 30_000); // 30s
+setInterval(unlessSleeping(fetchWeather), 900_000);         // 15min
+setInterval(unlessSleeping(fetchMarket), 600_000);          // 10min
 
 // --- BANNER (TAN alerts → fallback to today's agenda) ---
 const RELEVANT_LINES = ['3'];
@@ -904,7 +980,7 @@ const renderBanner = async () => {
 };
 
 renderBanner();
-setInterval(renderBanner, 300_000); // 5 min
+setInterval(unlessSleeping(renderBanner), 300_000); // 5 min
 
 // --- REAL ESTATE (DVF open data, pre-computed) ---
 // Values from Haversine filter around Félix Faure — refreshed annually.
@@ -989,4 +1065,4 @@ const fetchFuel = async () => {
 };
 
 fetchFuel();
-setInterval(fetchFuel, 3_600_000); // 1h
+setInterval(unlessSleeping(fetchFuel), 3_600_000); // 1h
